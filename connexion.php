@@ -32,6 +32,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Trop de tentatives de connexion. Veuillez réessayer dans 10 minutes.";
             }
 
+            // Add HTTPS enforcement
+            if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+                header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+                exit;
+            }
+
+            // Enhance rate limiting with IP tracking
+            $ip_address = $_SERVER['REMOTE_ADDR'];
+            if (!isset($_SESSION['login_attempts'][$ip_address])) {
+                $_SESSION['login_attempts'][$ip_address] = ['count' => 0, 'last_attempt' => time()];
+            }
+            if ($_SESSION['login_attempts'][$ip_address]['count'] >= 5 && (time() - $_SESSION['login_attempts'][$ip_address]['last_attempt']) < 600) {
+                $error = "Trop de tentatives de connexion. Veuillez r\u00e9essayer dans 10 minutes.";
+            }
+
             // Check if email exists
         $result = execute_query($conn, "SELECT id, email, password, full_name FROM users WHERE email = ?", [$email], "s");
         $user = $result->fetch_assoc();

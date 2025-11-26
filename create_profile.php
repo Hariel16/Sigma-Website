@@ -58,6 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Add stricter input validation
+    if (!preg_match('/^[a-zA-Z\s]+$/', $full_name)) {
+        $_SESSION['error'] = "Le nom complet ne doit contenir que des lettres et des espaces.";
+        header("Location: creation_profil.php");
+        exit;
+    }
+
     // Check if user already has a complete profile
     // Refactored database query using helper
     $result = execute_query($conn, "SELECT full_name, birth_date, bac_year, studies FROM users WHERE email = ?", [$email], "s");

@@ -5,6 +5,24 @@ if (!isset($_SESSION['user_email'])) {
     exit;
 }
 
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+// CSRF token validation function
+function validate_csrf_token($token) {
+    return hash_equals($_SESSION['csrf_token'], $token);
+}
+
+// Add CSRF token validation for media requests
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !validate_csrf_token($_POST['csrf_token'])) {
+        die("Invalid CSRF token.");
+    }
+}
+
 // Directory for yearbook media
 $uploads_dir = 'uploads/';
 $media_extensions = ['jpg', 'jpeg', 'png', 'mp4', 'webm'];

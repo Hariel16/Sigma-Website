@@ -13,6 +13,25 @@ unset($_SESSION['success'], $_SESSION['error']);
 // Generate CSRF token
 $csrf_token = bin2hex(random_bytes(32));
 $_SESSION['csrf_token'] = $csrf_token;
+
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] !== 'on') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+// Validate CSRF token in the form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $_SESSION['error'] = 'Invalid CSRF token. Please try again.';
+        header('Location: signalement.php');
+        exit;
+    }
+}
+
+// Sanitize user inputs
+$reported_user = htmlspecialchars(trim($_POST['reported_user'] ?? ''));
+$reason = htmlspecialchars(trim($_POST['reason'] ?? ''));
 ?>
 
 <!DOCTYPE html>
@@ -276,33 +295,36 @@ $_SESSION['csrf_token'] = $csrf_token;
                 <i class="fas fa-exclamation-triangle"></i> Veuillez n'utiliser cette fonctionnalité qu'en cas de comportement inapproprié. Les signalements abusifs peuvent entraîner des sanctions.
             </div>
             
-            <form method="POST" action="submit_report.php" id="reportForm">
+            <form method="POST" action="submit_report.php" id="reportForm" aria-labelledby="form-title">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                 
                 <div class="form-group">
                     <label for="reporter_email">Votre adresse e-mail</label>
                     <div class="input-icon">
-                        <i class="fas fa-envelope"></i>
-                        <input type="email" id="reporter_email" name="reporter_email" class="form-control" value="<?php echo htmlspecialchars($reporter_email); ?>" readonly required>
+                        <i class="fas fa-envelope" aria-hidden="true"></i>
+                        <input type="email" id="reporter_email" name="reporter_email" class="form-control" value="<?php echo htmlspecialchars($reporter_email); ?>" readonly required aria-describedby="email-desc">
                     </div>
+                    <small id="email-desc" class="sr-only">Votre adresse e-mail est utilisée pour vous identifier.</small>
                 </div>
                 
                 <div class="form-group">
                     <label for="reported_user">Nom ou e-mail de l'utilisateur à signaler</label>
                     <div class="input-icon">
-                        <i class="fas fa-user"></i>
-                        <input type="text" id="reported_user" name="reported_user" class="form-control" placeholder="Identifiant de l'utilisateur concerné" required>
+                        <i class="fas fa-user" aria-hidden="true"></i>
+                        <input type="text" id="reported_user" name="reported_user" class="form-control" placeholder="Identifiant de l'utilisateur concerné" required aria-describedby="user-desc">
                     </div>
+                    <small id="user-desc" class="sr-only">Entrez le nom ou l'e-mail de l'utilisateur que vous souhaitez signaler.</small>
                 </div>
                 
                 <div class="form-group">
                     <label for="reason">Motif du signalement</label>
-                    <textarea id="reason" name="reason" class="form-control" placeholder="Décrivez en détail le comportement problématique..." required></textarea>
-                    <div class="char-counter"><span id="charCount">0</span>/1000 caractères</div>
+                    <textarea id="reason" name="reason" class="form-control" placeholder="Décrivez en détail le comportement problématique..." required aria-describedby="reason-desc"></textarea>
+                    <small id="reason-desc" class="sr-only">Expliquez pourquoi vous signalez cet utilisateur.</small>
+                    <div class="char-counter" aria-live="polite"><span id="charCount">0</span>/1000 caractères</div>
                 </div>
                 
-                <button type="submit" class="btn btn-danger" id="submitBtn">
-                    <i class="fas fa-exclamation-circle"></i> Envoyer le signalement
+                <button type="submit" class="btn btn-danger" id="submitBtn" aria-label="Envoyer le signalement">
+                    <i class="fas fa-exclamation-circle" aria-hidden="true"></i> Envoyer le signalement
                 </button>
             </form>
         </div>

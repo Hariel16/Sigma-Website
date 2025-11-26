@@ -1,5 +1,12 @@
 <?php
 require 'config.php';
+
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] !== 'on') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 $years = [2023, 2024]; // Tableau des années, modifiable pour ajouter de nouvelles années
 $referrer = isset($_GET['from']) && $_GET['from'] === 'accueil' ? 'accueil.php' : 'yearbook.php';
 ?>
@@ -9,6 +16,7 @@ $referrer = isset($_GET['from']) && $_GET['from'] === 'accueil' ? 'accueil.php' 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https://via.placeholder.com; style-src 'self' https://cdnjs.cloudflare.com;">
     <title>Souvenirs des Années</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
@@ -109,18 +117,18 @@ $referrer = isset($_GET['from']) && $_GET['from'] === 'accueil' ? 'accueil.php' 
 </head>
 <body>
     <header>
-        <a href="<?php echo htmlspecialchars($referrer); ?>">←</a>
+        <a href="<?php echo htmlspecialchars($referrer); ?>" aria-label="Retour à la page précédente">←</a>
         <h1>Souvenirs des Années</h1>
-        <a href="<?php echo isset($_SESSION['user_email']) ? 'settings.php' : 'connexion.php'; ?>">
-            <i class="fas fa-cog"></i>
+        <a href="<?php echo isset($_SESSION['user_email']) ? 'settings.php' : 'connexion.php'; ?>" aria-label="Accéder aux paramètres ou se connecter">
+            <i class="fas fa-cog" aria-hidden="true"></i>
         </a>
     </header>
     <div class="container">
         <h1>Explorez les Souvenirs par Année</h1>
         <div class="banners">
             <?php foreach ($years as $year): ?>
-                <div class="banner">
-                    <div class="banner-header"><?php echo $year; ?></div>
+                <div class="banner" role="region" aria-labelledby="banner-header-<?php echo $year; ?>">
+                    <div class="banner-header" id="banner-header-<?php echo $year; ?>"><?php echo $year; ?></div>
                     <div class="banner-photos">
                         <?php
                         for ($i = 1; $i <= 4; $i++) {
@@ -132,9 +140,9 @@ $referrer = isset($_GET['from']) && $_GET['from'] === 'accueil' ? 'accueil.php' 
                     </div>
                     <div class="banner-footer">
                         <?php if (isset($_SESSION['user_email'])): ?>
-                            <a href="yearbook.php?bac_year=<?php echo $year; ?>" class="view-more-btn">Voir plus</a>
+                            <a href="yearbook.php?bac_year=<?php echo $year; ?>" class="view-more-btn" aria-label="Voir plus de souvenirs pour l'année <?php echo $year; ?>">Voir plus</a>
                         <?php else: ?>
-                            <a href="connexion.php?redirect=yearbook&bac_year=<?php echo $year; ?>" class="view-more-btn">Voir plus</a>
+                            <a href="connexion.php?redirect=yearbook&bac_year=<?php echo $year; ?>" class="view-more-btn" aria-label="Se connecter pour voir plus de souvenirs pour l'année <?php echo $year; ?>">Voir plus</a>
                         <?php endif; ?>
                     </div>
                 </div>

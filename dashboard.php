@@ -8,6 +8,12 @@ if (!isset($_SESSION['full_name'])) {
     exit;
 }
 
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 // Get user data including profile picture
 $full_name = $_SESSION['full_name'];
 $user_id = $_SESSION['user_id'];
@@ -36,6 +42,13 @@ $welcome_message = ($login_count <= 1) ? "Bienvenue parmi nous, $full_name" : "S
 $sql = "SELECT COUNT(*) as member_count FROM users";
 $result = $conn->query($sql);
 $member_count = $result->fetch_assoc()['member_count'];
+
+// Add CSRF token validation for dashboard actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !validate_csrf_token($_POST['csrf_token'])) {
+        die("Invalid CSRF token.");
+    }
+}
 ?>
 
 <!DOCTYPE html>

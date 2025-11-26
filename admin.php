@@ -1,19 +1,64 @@
 <?php
 require 'config.php';
+require_once 'csrf.php'; // Include CSRF protection helper
 
-// Définir le fuseau horaire de Lomé
-date_default_timezone_set('Africa/Abidjan'); // Lomé utilise ce fuseau
-$conn->query("SET time_zone = '+00:00'"); // UTC+0 pour l'Afrique de l'Ouest
+// Set timezone for Lomé
+if (!date_default_timezone_get()) {
+    date_default_timezone_set('Africa/Abidjan');
+}
+$conn->query("SET time_zone = '+00:00'");
+
+// Centralized error handling function
+function handle_admin_error($message, $log_message = null) {
+    if ($log_message) {
+        error_log($log_message);
+    }
+    $_SESSION['error'] = $message;
+    header("Location: admin.php");
+    exit;
+}
+
+// Improved CSRF validation
+function validateCsrfToken($token) {
+    if (!isset($token) || !validate_csrf_token($token)) {
+        handle_admin_error("Erreur de validation CSRF.", "Invalid CSRF token");
+    }
+}
+
+// Improved file upload handling
+function handle_file_upload($file, $config) {
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $config['extensions'])) {
+        handle_admin_error("Type de fichier non autorisé pour {$config['field']}. Extensions acceptées: " . implode(', ', $config['extensions']));
+    }
+
+    $max_size = $config['type'] === 'video' ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+    if ($file['size'] > $max_size) {
+        handle_admin_error("Le fichier {$config['field']} est trop volumineux. Taille maximale: " . ($max_size / (1024*1024)) . "MB");
+    }
+
+    if (!is_dir($config['path'])) {
+        mkdir($config['path'], 0777, true);
+    }
+
+    $filename = $config['field'] . '_' . uniqid() . '.' . $ext;
+    $destination = $config['path'] . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $destination)) {
+        handle_admin_error("Erreur lors du téléchargement de {$config['field']}.");
+    }
+
+    return $destination;
+}
 
 // Handle general configuration updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_general_config'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
     }
-    
-    // Traitement des URLs et textes
+
     $text_fields = ['instagram_url', 'tiktok_url', 'contact_email', 'contact_phone', 'contact_address'];
     foreach ($text_fields as $field) {
         if (isset($_POST[$field])) {
@@ -24,43 +69,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_general_config
             $stmt->close();
         }
     }
-    
-    // Traitement des fichiers uploadés
+
     $file_fields = [
         'footer_logo' => ['type' => 'image', 'path' => 'img/', 'extensions' => ['jpg', 'jpeg', 'png', 'svg']],
         'hero_video' => ['type' => 'video', 'path' => 'uploads/videos/', 'extensions' => ['mp4', 'webm', 'mov']],
         'favicon' => ['type' => 'image', 'path' => 'img/', 'extensions' => ['ico', 'png', 'jpg']],
         'admin_logo' => ['type' => 'image', 'path' => 'img/', 'extensions' => ['jpg', 'jpeg', 'png', 'svg']]
     ];
-    
+
     foreach ($file_fields as $field => $config) {
         if (isset($_FILES[$field]) && $_FILES[$field]['error'] === UPLOAD_ERR_OK) {
             $file = $_FILES[$field];
             $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-            
+
             if (!in_array($ext, $config['extensions'])) {
                 $_SESSION['error'] = "Type de fichier non autorisé pour $field. Extensions acceptées: " . implode(', ', $config['extensions']);
                 continue;
             }
-            
-            // Vérification de la taille selon le type
+
             $max_size = ($config['type'] === 'video') ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
             if ($file['size'] > $max_size) {
                 $_SESSION['error'] = "Le fichier $field est trop volumineux. Taille maximale: " . ($max_size / (1024*1024)) . "MB";
                 continue;
             }
-            
-            // Création du dossier si nécessaire
+
             if (!is_dir($config['path'])) {
                 mkdir($config['path'], 0777, true);
             }
-            
-            // Génération du nom de fichier
+
             $filename = $field . '_' . uniqid() . '.' . $ext;
             $destination = $config['path'] . $filename;
-            
+
             if (move_uploaded_file($file['tmp_name'], $destination)) {
-                // Suppression de l'ancien fichier si existe
                 $stmt = $conn->prepare("SELECT setting_value FROM general_config WHERE setting_key = ?");
                 $stmt->bind_param("s", $field);
                 $stmt->execute();
@@ -71,8 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_general_config
                     }
                 }
                 $stmt->close();
-                
-                // Mise à jour en base
+
                 $stmt = $conn->prepare("INSERT INTO general_config (setting_key, setting_value, setting_type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
                 $stmt->bind_param("ssss", $field, $destination, $config['type'], $destination);
                 $stmt->execute();
@@ -80,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_general_config
             }
         }
     }
-    
+
     $_SESSION['success'] = "Configuration générale mise à jour avec succès.";
     header("Location: admin.php");
     exit;
@@ -117,90 +156,58 @@ foreach ($default_config as $key => $value) {
 
 // Handle event addition
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_event'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        $_SESSION['error'] = "Erreur de validation CSRF.";
-        header("Location: admin.php");
-        exit;
-    }
-    
+    validateCsrfToken($_POST['csrf_token']);
+
     $title = filter_var($_POST['event_title'], FILTER_SANITIZE_STRING);
     $description = filter_var($_POST['event_description'], FILTER_SANITIZE_STRING);
     $event_date = filter_var($_POST['event_date'], FILTER_SANITIZE_STRING);
     $location = filter_var($_POST['event_location'], FILTER_SANITIZE_STRING);
-    
-    $image_path = NULL;
+
+    $image_path = null;
     if (isset($_FILES['event_image']) && $_FILES['event_image']['error'] === UPLOAD_ERR_OK) {
-        $file = $_FILES['event_image'];
-        $allowed_extensions = ['jpg', 'jpeg', 'png'];
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        
-        if (!in_array($ext, $allowed_extensions)) {
-            $_SESSION['error'] = "Type de fichier non autorisé. Utilisez JPG, JPEG ou PNG.";
-            header("Location: admin.php");
-            exit;
-        }
-        
-        if ($file['size'] > 2 * 1024 * 1024) {
-            $_SESSION['error'] = "L'image est trop volumineuse. Taille maximale : 2 Mo.";
-            header("Location: admin.php");
-            exit;
-        }
-        
-        $filename = 'event_' . uniqid() . '.' . $ext;
-        $destination = "Uploads/events/$filename";
-        
-        if (!is_dir("Uploads/events")) {
-            mkdir("Uploads/events", 0777, true);
-        }
-        
-        if (move_uploaded_file($file['tmp_name'], $destination)) {
-            $image_path = $destination;
-        } else {
-            $_SESSION['error'] = "Erreur lors du téléchargement de l'image.";
-            header("Location: admin.php");
-            exit;
-        }
+        $image_path = handle_file_upload($_FILES['event_image'], [
+            'field' => 'event_image',
+            'type' => 'image',
+            'path' => 'Uploads/events/',
+            'extensions' => ['jpg', 'jpeg', 'png']
+        ]);
     }
-    
+
     $stmt = $conn->prepare("INSERT INTO events (title, description, event_date, location, image_path) VALUES (?, ?, ?, ?, ?)");
     $stmt->bind_param("sssss", $title, $description, $event_date, $location, $image_path);
-    
-    if ($stmt->execute()) {
-        $_SESSION['success'] = "Événement ajouté avec succès.";
-    } else {
-        $_SESSION['error'] = "Erreur lors de l'ajout de l'événement.";
+
+    if (!$stmt->execute()) {
+        handle_admin_error("Erreur lors de l'ajout de l'événement.", "Failed to add event: " . $stmt->error);
     }
-    $stmt->close();
+
+    $_SESSION['success'] = "Événement ajouté avec succès.";
     header("Location: admin.php");
     exit;
 }
 
 // Handle event deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_event'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
     }
-    
+
     $event_id = (int)filter_var($_POST['event_id'], FILTER_SANITIZE_NUMBER_INT);
-    
-    // Get image path before deletion
+
     $stmt = $conn->prepare("SELECT image_path FROM events WHERE id = ?");
     $stmt->bind_param("i", $event_id);
     $stmt->execute();
     $result = $stmt->get_result();
     $event = $result->fetch_assoc();
     $stmt->close();
-    
-    // Delete image file if exists
+
     if ($event['image_path'] && file_exists($event['image_path'])) {
         unlink($event['image_path']);
     }
-    
+
     $stmt = $conn->prepare("DELETE FROM events WHERE id = ?");
     $stmt->bind_param("i", $event_id);
-    
     if ($stmt->execute()) {
         $_SESSION['success'] = "Événement supprimé avec succès.";
     } else {
@@ -213,37 +220,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_event'])) {
 
 // Handle event editing
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_event'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
     }
-    
+
     $event_id = (int)filter_var($_POST['event_id'], FILTER_SANITIZE_NUMBER_INT);
     $title = filter_var($_POST['title'], FILTER_SANITIZE_STRING);
     $description = filter_var($_POST['description'], FILTER_SANITIZE_STRING);
     $event_date = filter_var($_POST['event_date'], FILTER_SANITIZE_STRING);
     $location = filter_var($_POST['location'], FILTER_SANITIZE_STRING);
-    
+
     // Handle image update
     $image_path = NULL;
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['image'];
         $allowed_extensions = ['jpg', 'jpeg', 'png'];
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        
+
         if (!in_array($ext, $allowed_extensions)) {
             $_SESSION['error'] = "Type de fichier non autorisé. Utilisez JPG, JPEG ou PNG.";
             header("Location: admin.php");
             exit;
         }
-        
+
         if ($file['size'] > 2 * 1024 * 1024) {
             $_SESSION['error'] = "L'image est trop volumineuse. Taille maximale : 2 Mo.";
             header("Location: admin.php");
             exit;
         }
-        
+
         // Delete old image
         $stmt = $conn->prepare("SELECT image_path FROM events WHERE id = ?");
         $stmt->bind_param("i", $event_id);
@@ -251,23 +258,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_event'])) {
         $result = $stmt->get_result();
         $old_event = $result->fetch_assoc();
         $stmt->close();
-        
+
         if ($old_event['image_path'] && file_exists($old_event['image_path'])) {
             unlink($old_event['image_path']);
         }
-        
+
         $filename = 'event_' . uniqid() . '.' . $ext;
         $destination = "Uploads/events/$filename";
-        
+
         if (!is_dir("Uploads/events")) {
             mkdir("Uploads/events", 0777, true);
         }
-        
+
         if (move_uploaded_file($file['tmp_name'], $destination)) {
             $image_path = $destination;
         }
     }
-    
+
     if ($image_path) {
         $stmt = $conn->prepare("UPDATE events SET title = ?, description = ?, event_date = ?, location = ?, image_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->bind_param("sssssi", $title, $description, $event_date, $location, $image_path, $event_id);
@@ -275,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_event'])) {
         $stmt = $conn->prepare("UPDATE events SET title = ?, description = ?, event_date = ?, location = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->bind_param("ssssi", $title, $description, $event_date, $location, $event_id);
     }
-    
+
     if ($stmt->execute()) {
         $_SESSION['success'] = "Événement mis à jour avec succès.";
     } else {
@@ -291,12 +298,6 @@ $stmt = $conn->prepare("SELECT * FROM events ORDER BY event_date DESC");
 $stmt->execute();
 $events = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
-// Add this at the top of admin.php, after session_start() and database connection
-require 'vendor/autoload.php';
-$purifier = new HTMLPurifier();
-// Add this at the top of admin.php, after session_start() and database connection
-require 'vendor/autoload.php';
-$purifier = new HTMLPurifier();
 
 // Generate CSRF token
 if (empty($_SESSION['csrf_token'])) {
@@ -305,7 +306,7 @@ if (empty($_SESSION['csrf_token'])) {
 
 // Handle contact info update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_contact_info'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -319,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_contact_info']
     $linkedin_url = filter_var($_POST['linkedin_url'], FILTER_SANITIZE_URL) ?: null;
     $facebook_url = filter_var($_POST['facebook_url'], FILTER_SANITIZE_URL) ?: null;
     $map_iframe = $purifier->purify($_POST['map_iframe']);
-    
+
     // Validate inputs
     if (empty($email) || empty($phone) || empty($address) || empty($hours) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $_SESSION['error'] = "Veuillez remplir tous les champs obligatoires correctement.";
@@ -351,7 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_contact_info']
 
 // Handle deleting contact submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_submission'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -404,7 +405,7 @@ if (empty($_SESSION['csrf_token'])) {
 
 // Handle mission update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_mission'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -424,7 +425,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_mission'])) {
 
 // Handle adding strategic objective
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objectif'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -447,7 +448,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objectif'])) {
 
 // Handle editing strategic objective
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_objectif'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -471,7 +472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_objectif'])) {
 
 // Handle deleting strategic objective
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_objectif'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -491,7 +492,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_objectif'])) {
 
 // Handle adding fundamental value
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_value'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -514,7 +515,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_value'])) {
 
 // Handle editing fundamental value
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_value'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -538,7 +539,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_value'])) {
 
 // Handle deleting fundamental value
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_value'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -578,7 +579,7 @@ $stmt->close();
 
 // Handle current bureau member addition
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_bureau_member'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -603,7 +604,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_bureau_member']))
 
 // Handle bureau member removal
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_bureau_member'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -626,7 +627,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_bureau_member'
 
 // Handle historical bureau addition
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_historical_bureau'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -650,7 +651,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_historical_bureau
 
 // Handle historical bureau removal
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_historical_bureau'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -701,7 +702,7 @@ if (!isset($_SESSION['csrf_token'])) {
 
 // Handle verification code update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_verification_code'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -725,7 +726,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_verification_c
 
 // Remplacer cette partie dans la validation des dates d'élection
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_election'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -796,7 +797,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_election'])) {
 }
 // Handle results publication
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['publish_results'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -819,7 +820,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['publish_results'])) {
 
 // Handle results unpublishing
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['unpublish_results'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -841,7 +842,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['unpublish_results']))
 }
 // Handle election deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_election'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -861,7 +862,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_election'])) {
 
 // Handle candidate creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_candidate'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -936,7 +937,7 @@ if (isset($_FILES['candidate_video'])) {
 
 // Handle candidate deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_candidate'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1065,7 +1066,7 @@ foreach ($elections as $election) {
 
 // Handle user deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1131,7 +1132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
 
 // Handle user edit
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1157,7 +1158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
 
 // Handle media deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_media'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1178,7 +1179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_media'])) {
 
 // Handle year deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_year'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1207,7 +1208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_year'])) {
 
 // Handle message deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_message'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1227,7 +1228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_message'])) {
 
 // Handle report deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_report'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1247,7 +1248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_report'])) {
 
 // Handle suggestion deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_suggestion'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1267,7 +1268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_suggestion']))
 
 // Handle new year creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_year'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1292,10 +1293,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_year'])) {
     exit;
 }
 
-
 // Handle regulation article addition
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_regulation'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1319,7 +1319,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_regulation'])) {
 
 // Handle regulation article update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_regulation'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1344,7 +1344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_regulation'])) {
 
 // Handle regulation article deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_regulation'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1364,7 +1364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_regulation']))
 
 // Handle regulation footer update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_regulation_footer'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1396,7 +1396,7 @@ $stmt->close();
 
 // Handle media upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_media'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1493,7 +1493,7 @@ $stmt->close();
 
 // Handle news addition
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_news'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1565,7 +1565,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_news'])) {
 
 // Handle news deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_news'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1601,7 +1601,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_news'])) {
 
 // Handle news toggle (active/inactive)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_news'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1627,6 +1627,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_news'])) {
         $active_news_count = $stmt->get_result()->fetch_row()[0];
         $stmt->close();
         
+        
         if ($active_news_count >= 3) {
             $_SESSION['error'] = "Maximum 3 actualités actives autorisées. Désactivez d'abord une actualité existante.";
             header("Location: admin.php");
@@ -1649,7 +1650,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_news'])) {
 
 // Handle news editing
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_news'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
         header("Location: admin.php");
         exit;
@@ -1706,7 +1707,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_news'])) {
     
     if ($image_path) {
         $stmt = $conn->prepare("UPDATE news SET title = ?, excerpt = ?, content = ?, image_path = ?, order_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->bind_param("ssssii", $title, $excerpt, $content, $image_path, $order_index, $news_id);
+        $stmt->bind_param("sssssi", $title, $excerpt, $content, $image_path, $order_index, $news_id);
     } else {
         $stmt = $conn->prepare("UPDATE news SET title = ?, excerpt = ?, content = ?, order_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->bind_param("sssii", $title, $excerpt, $content, $order_index, $news_id);
@@ -2860,7 +2861,7 @@ $stmt->close();
                                 <label class="block text-sm font-medium mb-1">Description *</label>
                                 <textarea name="event_description" class="form-input" rows="3" required></textarea>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
                                     <label class="block text-sm font-medium mb-1">Date et heure *</label>
                                     <input type="datetime-local" name="event_date" class="form-input" required>
@@ -2966,7 +2967,7 @@ $stmt->close();
                             </div>
                             <div>
                                 <label class="block text-sm font-medium mb-1">Ordre d'affichage</label>
-                                <input type="number" name="order_index" class="form-input" value="0" min="0">
+                                <input type="number" name="order_index" class="form-input" value="0" min="0" required>
                             </div>
                         </div>
                         <button type="submit" name="add_news" class="btn-primary">Ajouter l'actualité</button>
@@ -3082,7 +3083,7 @@ $stmt->close();
                             <!-- Adresse -->
                             <div class="form-group mb-6">
                                 <label class="form-label">Adresse complète *</label>
-                                <textarea name="address" id="address" class="form-input form-textarea" rows="3" required><?php echo htmlspecialchars($contact_info['address']); ?></textarea>
+                                <textarea name="contact_address" id="address" class="form-input form-textarea" rows="3" required><?php echo htmlspecialchars($contact_info['address']); ?></textarea>
                             </div>
 
                             <!-- Réseaux sociaux -->
@@ -3267,7 +3268,7 @@ $stmt->close();
                                     <?php endif; ?>
                                     <input type="file" name="footer_logo" class="form-input" accept=".jpg,.jpeg,.png,.svg">
                                 </div>
-                                <p class="text-sm text-gray-500">Formats acceptés: JPG, PNG, SVG. Taille max: 5MB</p>
+                                <p class="text-sm text-gray-500 mt-1">Formats acceptés: JPG, PNG, SVG. Taille max: 5MB</p>
                             </div>
                             
                             <!-- Vidéo de fond -->
@@ -3279,7 +3280,7 @@ $stmt->close();
                                     <?php endif; ?>
                                 </div>
                                 <input type="file" name="hero_video" class="form-input" accept=".mp4,.webm,.mov">
-                                <p class="text-sm text-gray-500">Formats acceptés: MP4, WebM, MOV. Taille max: 50MB</p>
+                                <p class="text-sm text-gray-500 mt-1">Formats acceptés: MP4, WebM, MOV. Taille max: 50MB</p>
                             </div>
                             
                             <!-- Favicon -->
@@ -3291,7 +3292,7 @@ $stmt->close();
                                     <?php endif; ?>
                                     <input type="file" name="favicon" class="form-input" accept=".ico,.png,.jpg">
                                 </div>
-                                <p class="text-sm text-gray-500">Formats acceptés: ICO, PNG, JPG. Taille max: 2MB</p>
+                                <p class="text-sm text-gray-500 mt-1">Formats acceptés: ICO, PNG, JPG. Taille max: 2MB</p>
                             </div>
                             
                             <!-- Logo admin -->
@@ -3303,7 +3304,7 @@ $stmt->close();
                                     <?php endif; ?>
                                     <input type="file" name="admin_logo" class="form-input" accept=".jpg,.jpeg,.png,.svg">
                                 </div>
-                                <p class="text-sm text-gray-500">Formats acceptés: JPG, PNG, SVG. Taille max: 5MB</p>
+                                <p class="text-sm text-gray-500 mt-1">Formats acceptés: JPG, PNG, SVG. Taille max: 5MB</p>
                             </div>
                         </div>
                         
@@ -3934,7 +3935,7 @@ $stmt->close();
                                         <i class="fas fa-clock text-yellow-500 mr-3"></i>
                                         <div>
                                             <p class="font-medium text-yellow-800">Élection en cours</p>
-                                            <p class="text-sm text-yellow-600">Les résultats seront disponibles après la fin du vote le <?php echo date('d/m/Y à H:i', strtotime($election['end_date'])); ?></p>
+                                            <p class="text-sm text-yellow-600 mt-1">Les résultats seront disponibles après la fin du vote le <?php echo date('d/m/Y à H:i', strtotime($election['end_date'])); ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -4135,7 +4136,7 @@ $stmt->close();
                         <div class="form-group">
                             <label class="form-label">Ordre d'affichage *</label>
                             <input type="number" name="order_index" id="edit_objectif_order" class="form-input" min="0" required>
-                            <p class="text-sm text-gray-500 mt-1">Plus petit = premier</p>
+                            <p class="text-sm text-gray-500 mt-1">Détermine l'ordre d'apparition (plus petit = premier)</p>
                         </div>
                     </div>
                 </div>
@@ -4193,7 +4194,7 @@ $stmt->close();
                         <div class="form-group">
                             <label class="form-label">Ordre d'affichage *</label>
                             <input type="number" name="order_index" id="edit_value_order" class="form-input" min="0" required>
-                            <p class="text-sm text-gray-500 mt-1">Plus petit = premier</p>
+                            <p class="text-sm text-gray-500 mt-1">Détermine l'ordre d'apparition (plus petit = premier)</p>
                         </div>
                     </div>
                 </div>

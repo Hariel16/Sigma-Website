@@ -1,16 +1,10 @@
 <?php
 require 'config.php';
-
-// Hardcoded admin credentials
-define('ADMIN_EMAIL', 'meh.ajavon@ashesi.edu.gh');
-define('ADMIN_PASSWORD', 'KOBAhariel123');
+require_once 'csrf.php'; // Include CSRF protection helper
 
 // Ensure session is started
 if (!isset($_SESSION)) {
     session_start();
-    error_log("Session started in admin_login.php");
-} else {
-    error_log("Session already started in admin_login.php");
 }
 
 // Generate CSRF token for the login form
@@ -18,35 +12,40 @@ if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 // Handle login
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Verify CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!isset($_POST['csrf_token']) || !validate_csrf_token($_POST['csrf_token'])) {
         $_SESSION['error'] = "Erreur de validation CSRF.";
-        error_log("CSRF validation failed for login attempt");
         header("Location: admin_login.php");
         exit;
     }
 
-    $email = isset($_POST['email']) ? filter_var($_POST['email'], FILTER_SANITIZE_EMAIL) : '';
-    $password = isset($_POST['password']) ? $_POST['password'] : '';
-
-    // Debug: Log submitted credentials
-    error_log("Login attempt - Email: $email");
+    $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+    $password = $_POST['password'];
 
     if (empty($email) || empty($password)) {
         $_SESSION['error'] = "Veuillez entrer un email et un mot de passe.";
-        error_log("Empty email or password submitted");
-    } elseif ($email !== ADMIN_EMAIL || $password !== ADMIN_PASSWORD) {
-        $_SESSION['error'] = "Email ou mot de passe incorrect.";
-        error_log("Credentials mismatch: Email=$email, Password=$password");
     } else {
-        $_SESSION['admin_logged_in'] = true;
-        error_log("Login successful for $email");
-        // Regenerate CSRF token after successful login
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-        header("Location: admin.php");
-        exit;
+        // Fetch admin credentials from environment variables
+        $admin_email = getenv('ADMIN_EMAIL');
+        $admin_password = getenv('ADMIN_PASSWORD');
+
+        if ($email !== $admin_email || !password_verify($password, $admin_password)) {
+            $_SESSION['error'] = "Email ou mot de passe incorrect.";
+        } else {
+            $_SESSION['admin_logged_in'] = true;
+            // Regenerate CSRF token after successful login
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            header("Location: admin.php");
+            exit;
+        }
     }
 }
 ?>
@@ -223,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <div class="form-group">
                 <label for="email">Email</label>
-                <input type="email" name="email" id="email" placeholder="Entrez votre email" value="meh.ajavon@ashesi.edu.gh" required class="form-control">
+                <input type="email" name="email" id="email" placeholder="Entrez votre email" required class="form-control">
                 <i class="fas fa-envelope"></i>
             </div>
             <div class="form-group">

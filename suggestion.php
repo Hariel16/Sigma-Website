@@ -13,6 +13,12 @@ unset($_SESSION['success'], $_SESSION['error']);
 // Generate CSRF token
 $csrf_token = bin2hex(random_bytes(32));
 $_SESSION['csrf_token'] = $csrf_token;
+
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] !== 'on') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -263,25 +269,27 @@ $_SESSION['csrf_token'] = $csrf_token;
                 </div>
             <?php endif; ?>
             
-            <form method="POST" action="submit_suggestion.php" id="suggestionForm">
+            <form method="POST" action="submit_suggestion.php" id="suggestionForm" aria-labelledby="form-title">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                 
                 <div class="form-group">
                     <label for="email">Votre adresse e-mail</label>
                     <div class="input-icon">
-                        <i class="fas fa-envelope"></i>
-                        <input type="email" id="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_email); ?>" readonly required>
+                        <i class="fas fa-envelope" aria-hidden="true"></i>
+                        <input type="email" id="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_email); ?>" readonly required aria-describedby="email-desc">
                     </div>
+                    <small id="email-desc" class="sr-only">Votre adresse e-mail est utilisée pour vous identifier.</small>
                 </div>
                 
                 <div class="form-group">
                     <label for="suggestion">Votre suggestion</label>
-                    <textarea id="suggestion" name="suggestion" class="form-control" placeholder="Décrivez votre suggestion en détail..." required></textarea>
-                    <div class="char-counter"><span id="charCount">0</span>/1000 caractères</div>
+                    <textarea id="suggestion" name="suggestion" class="form-control" placeholder="Décrivez votre suggestion en détail..." required aria-describedby="suggestion-desc"></textarea>
+                    <small id="suggestion-desc" class="sr-only">Expliquez votre suggestion pour améliorer Sigma Yearbook.</small>
+                    <div class="char-counter" aria-live="polite"><span id="charCount">0</span>/1000 caractères</div>
                 </div>
                 
-                <button type="submit" class="btn btn-primary" id="submitBtn">
-                    <i class="fas fa-paper-plane"></i> Envoyer la suggestion
+                <button type="submit" class="btn btn-primary" id="submitBtn" aria-label="Envoyer la suggestion">
+                    <i class="fas fa-paper-plane" aria-hidden="true"></i> Envoyer la suggestion
                 </button>
             </form>
         </div>

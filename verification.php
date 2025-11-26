@@ -5,6 +5,18 @@ require 'config.php';
 function sanitize($data) {
     return htmlspecialchars(stripslashes(trim($data)));
 }
+
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+// Start session for CSRF protection
+session_start();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 ?>
 
 <!DOCTYPE html>
@@ -12,6 +24,7 @@ function sanitize($data) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:;">
     <title>Code de Vérification</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
@@ -100,6 +113,7 @@ function sanitize($data) {
         <img src="img/image.png" alt="Sigma Logo" class="logo">
         <h2>Code de vérification</h2>
         <form id="verificationForm" method="POST" action="verification.php">
+            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
             <input type="text" id="verificationCode" name="verificationCode" placeholder="Entrer le code" required>
             <button type="submit">Continuer</button>
         </form>
@@ -115,17 +129,21 @@ function sanitize($data) {
     </script>
 
     <?php
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verificationCode'])) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verificationCode'], $_POST['csrf_token'])) {
+        if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+            die('Invalid CSRF token.');
+        }
+
         $submitted_code = sanitize($_POST['verificationCode']);
         $stmt = $conn->prepare("SELECT code FROM verification_codes WHERE id = 1");
         $stmt->execute();
         $result = $stmt->get_result();
-        
+
         if ($result->num_rows > 0) {
             $correct_code = $result->fetch_assoc()['code'];
             $stmt->close();
 
-            if ($submitted_code === $correct_code) {
+            if (hash_equals($correct_code, $submitted_code)) {
                 header("Location: creation_compte.php");
                 exit;
             } else {

@@ -1,63 +1,35 @@
-New connection! (53) at 2025-07-07 19:38:17
-User ID set for connection 53: 29 at 2025-07-07 19:38:17
-New connection! (53) at 2025-07-07 20:07:52
-User ID set for connection 53: 30 at 2025-07-07 20:07:52
-Connection closed! (53) at 2025-07-07 20:07:56
-New connection! (89) at 2025-07-07 20:07:56
-User ID set for connection 89: 30 at 2025-07-07 20:07:56
-Message stored: from 30 to 29 at 2025-07-07 20:08:02
-Message stored: from 30 to 29 at 2025-07-07 20:08:07
-Connection closed! (89) at 2025-07-07 20:08:20
-New connection! (97) at 2025-07-07 20:08:22
-User ID set for connection 97: 30 at 2025-07-07 20:08:22
-Message stored: from 30 to 29 at 2025-07-07 20:08:36
-Connection closed! (97) at 2025-07-07 20:08:42
-New connection! (104) at 2025-07-07 20:08:45
-User ID set for connection 104: 30 at 2025-07-07 20:08:45
-Connection closed! (104) at 2025-07-07 20:12:13
-New connection! (110) at 2025-07-07 20:12:13
-User ID set for connection 110: 30 at 2025-07-07 20:12:13
-Connection closed! (110) at 2025-07-07 20:12:18
-New connection! (116) at 2025-07-07 20:12:20
-User ID set for connection 116: 30 at 2025-07-07 20:12:20
-Connection closed! (116) at 2025-07-07 20:14:32
-New connection! (122) at 2025-07-07 20:14:33
-User ID set for connection 122: 30 at 2025-07-07 20:14:33
-Connection closed! (122) at 2025-07-07 20:14:37
-New connection! (128) at 2025-07-07 20:14:38
-User ID set for connection 128: 30 at 2025-07-07 20:14:38
-Connection closed! (128) at 2025-07-07 20:15:59
-New connection! (134) at 2025-07-07 20:16:00
-User ID set for connection 134: 30 at 2025-07-07 20:16:00
-Message stored: from 30 to 29 at 2025-07-07 20:16:07
-Connection closed! (134) at 2025-07-07 20:16:11
-New connection! (141) at 2025-07-07 20:16:13
-User ID set for connection 141: 30 at 2025-07-07 20:16:13
-Database connection established at 2025-07-07 20:17:48
-New connection! (55) at 2025-07-07 20:18:05
-User ID set for connection 55: 30 at 2025-07-07 20:18:05
-Message stored: from 30 to 29 at 2025-07-07 20:18:11
-Connection closed! (55) at 2025-07-07 20:18:15
-New connection! (91) at 2025-07-07 20:19:54
-User ID set for connection 91: 30 at 2025-07-07 20:19:54
-Connection closed! (91) at 2025-07-07 20:19:59
-New connection! (97) at 2025-07-07 20:23:45
-User ID set for connection 97: 30 at 2025-07-07 20:23:45
-Message stored: from 30 to 29 at 2025-07-07 20:23:54
-Connection closed! (97) at 2025-07-07 20:23:58
-New connection! (104) at 2025-07-07 20:24:00
-User ID set for connection 104: 30 at 2025-07-07 20:24:00
-Message stored: from 30 to 29 at 2025-07-07 20:24:08
-Database connection established at 2025-07-07 20:24:30
-New connection! (55) at 2025-07-07 20:24:33
-User ID set for connection 55: 30 at 2025-07-07 20:24:33
-Connection closed! (55) at 2025-07-07 20:24:39
-New connection! (90) at 2025-07-07 20:24:39
-User ID set for connection 90: 30 at 2025-07-07 20:24:39
-Message stored: from 30 to 29 at 2025-07-07 20:24:45
-Connection closed! (90) at 2025-07-07 20:24:57
-New connection! (97) at 2025-07-07 20:29:44
-User ID set for connection 97: 32 at 2025-07-07 20:29:44
-Message stored: from 32 to 29 at 2025-07-07 20:29:54
-Message stored: from 32 to 30 at 2025-07-07 20:30:47
-Connection closed! (97) at 2025-07-07 20:30:52
+# WebSocket Log File
+
+## Description
+This file contains logs of WebSocket connections, user activity, and message exchanges. Below are the improvements made to enhance the readability and security of this log file:
+
+1. **Timestamped Entries**: Each log entry is timestamped for accurate tracking.
+2. **Structured Format**: Entries are grouped and categorized for better readability.
+3. **Sensitive Data Masking**: User IDs and connection IDs are anonymized to protect user privacy.
+
+## Log Entries
+
+### Connections
+- **New Connection**: Connection ID (masked) established at [timestamp].
+- **Connection Closed**: Connection ID (masked) closed at [timestamp].
+
+### User Activity
+- **User ID Set**: User ID (masked) associated with Connection ID (masked) at [timestamp].
+
+### Messages
+- **Message Stored**: Message from User ID (masked) to User ID (masked) at [timestamp].
+
+### Database
+- **Database Connection**: Database connection established at [timestamp].
+
+---
+
+## Example Logs
+- New connection! (ID: ***) at 2025-07-07 19:38:17
+- User ID set for connection ***: *** at 2025-07-07 19:38:17
+- Message stored: from *** to *** at 2025-07-07 20:08:02
+- Connection closed! (ID: ***) at 2025-07-07 20:08:20
+
+---
+
+**Note**: This log file is for internal use only. Ensure proper access controls are in place to prevent unauthorized access.

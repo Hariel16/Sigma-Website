@@ -10,8 +10,16 @@ $sort_order = isset($_GET['sort_order']) && in_array(strtoupper($_GET['sort_orde
 $limit = 12;
 $offset = $page * $limit;
 
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+// Add stricter validation for sorting parameters
 $allowed_sort_columns = ['full_name', 'bac_year'];
 if (!in_array($sort_by, $allowed_sort_columns)) {
+    error_log("Invalid sort column: $sort_by");
     $sort_by = 'full_name';
 }
 

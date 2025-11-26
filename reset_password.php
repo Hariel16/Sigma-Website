@@ -65,6 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Réinitialisation du mot de passe - SIGMA Alumni">
+    <meta name="author" content="SIGMA Alumni">
     <title>Réinitialiser le mot de passe</title>
     <style>
         body {
@@ -133,11 +136,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <img src="img/image.png" alt="Sigma Logo" class="logo">
         <h2>Réinitialiser le mot de passe</h2>
         <?php if (isset($_SESSION['error'])) { ?>
-            <p class="error"><?php echo $_SESSION['error']; unset($_SESSION['error']); ?></p>
+            <p class="error" role="alert"><?php echo $_SESSION['error']; unset($_SESSION['error']); ?></p>
         <?php } ?>
         <form method="POST" action="">
-            <input type="password" name="password" placeholder="Nouveau mot de passe" required>
-            <input type="password" name="confirm_password" placeholder="Confirmer le mot de passe" required>
+            <input type="password" name="password" placeholder="Nouveau mot de passe" required aria-label="Nouveau mot de passe">
+            <input type="password" name="confirm_password" placeholder="Confirmer le mot de passe" required aria-label="Confirmer le mot de passe">
             <button type="submit">Réinitialiser</button>
         </form>
     </div>

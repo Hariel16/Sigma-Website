@@ -1,6 +1,12 @@
 <?php include 'header.php'; ?>
 
 <?php
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 // Fetch upcoming events (events with date in the future)
 $stmt = $conn->prepare("SELECT * FROM events WHERE event_date > NOW() ORDER BY event_date ASC");
 $stmt->execute();

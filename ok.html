@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="SIGMA Alumni - Élections">
+    <meta name="author" content="SIGMA Alumni">
     <title>Élections - SIGMA ALUMNI</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -14,97 +17,42 @@
             --dark-blue: #1e3a8a;
             --light-gray: #f8fafc;
         }
-        
+
         body {
             font-family: 'Segoe UI', Roboto, sans-serif;
             background-color: #f5f7fa;
         }
-        
+
         .election-card {
             transition: all 0.3s ease;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             border-left: 4px solid var(--primary-blue);
         }
-        
+
         .election-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
         }
-        
+
         .candidate-card {
             border-radius: 12px;
             overflow: hidden;
             transition: all 0.3s ease;
         }
-        
+
         .candidate-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
         }
-        
+
         .vote-btn {
             background: linear-gradient(135deg, var(--primary-blue), var(--dark-blue));
             transition: all 0.3s ease;
         }
-        
+
         .vote-btn:hover {
             transform: scale(1.02);
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-        }
-        
-        .nav-tab {
-            position: relative;
-            padding-bottom: 8px;
-        }
-        
-        .nav-tab.active::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 3px;
-            background-color: var(--secondary-gold);
-        }
-        
-        .progress-bar {
-            height: 8px;
-            border-radius: 4px;
-            background-color: #e2e8f0;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            border-radius: 4px;
-            background: linear-gradient(90deg, var(--primary-blue), var(--secondary-gold));
-        }
-        
-        .timeline-item {
-            position: relative;
-            padding-left: 30px;
-            margin-bottom: 20px;
-        }
-        
-        .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: 8px;
-            top: 0;
-            height: 100%;
-            width: 2px;
-            background-color: var(--primary-blue);
-        }
-        
-        .timeline-dot {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background-color: var(--secondary-gold);
-            border: 3px solid white;
-            box-shadow: 0 0 0 2px var(--primary-blue);
         }
     </style>
 </head>

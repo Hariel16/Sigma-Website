@@ -1,8 +1,23 @@
 <?php
 require 'config.php';
+
+// Fonction de sanitisation pour nettoyer les données
 function sanitize($data) {
     return htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8');
 }
+
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+// Start session for CSRF protection
+session_start();
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 if (!isset($_SESSION['user_email'])) {
     header("Location: connexion.php");
     exit;
@@ -43,7 +58,7 @@ if (!in_array($sort_by, $allowed_sort_columns)) {
     $sort_by = 'full_name';
 }
 
-// Build SQL query with birthday check - SUPPRIMER COMPLÈTEMENT LA RECHERCHE
+// Build SQL query with birthday check
 $current_date = date('m-d');
 $query = "SELECT id, full_name, email, birth_date, studies, bac_year, profile_picture, 
           CASE WHEN DATE_FORMAT(birth_date, '%m-%d') = ? THEN 1 ELSE 0 END AS is_birthday 
@@ -60,7 +75,6 @@ if ($studies) {
     $params[] = "%$studies%";
     $types .= 's';
 }
-// SUPPRIMÉ : Plus de recherche par nom ou email
 $query .= " ORDER BY $sort_by $sort_order LIMIT ? OFFSET ?";
 $params[] = $limit;
 $params[] = $offset;
@@ -75,21 +89,14 @@ $result = $stmt->get_result();
 $users = $result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// Generate CSRF token
-$csrf_token = bin2hex(random_bytes(32));
-$_SESSION['csrf_token'] = $csrf_token;
-
 // Fonction pour vérifier et envoyer les rappels d'anniversaire
 function checkBirthdayReminders($conn) {
-    // Date actuelle et date dans 2 jours
     $now = new DateTime();
     $in_two_days = (new DateTime())->add(new DateInterval('P2D'));
-    
-    // Formater les dates pour la comparaison
+
     $current_month_day = $now->format('m-d');
     $in_two_days_month_day = $in_two_days->format('m-d');
-    
-    // Récupérer tous les utilisateurs dont c'est l'anniversaire aujourd'hui ou dans 2 jours
+
     $query = "SELECT id, full_name, email, birth_date FROM users WHERE 
               DATE_FORMAT(birth_date, '%m-%d') = ? OR DATE_FORMAT(birth_date, '%m-%d') = ?";
     $stmt = $conn->prepare($query);
@@ -98,8 +105,7 @@ function checkBirthdayReminders($conn) {
     $result = $stmt->get_result();
     $birthday_users = $result->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
-    
-    // Récupérer tous les utilisateurs sauf ceux qui ont leur anniversaire
+
     $query = "SELECT email FROM users WHERE 
               DATE_FORMAT(birth_date, '%m-%d') NOT IN (?, ?)";
     $stmt = $conn->prepare($query);
@@ -108,16 +114,13 @@ function checkBirthdayReminders($conn) {
     $result = $stmt->get_result();
     $other_users = $result->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
-    
-    // Envoyer les notifications
+
     foreach ($birthday_users as $user) {
         $user_month_day = (new DateTime($user['birth_date']))->format('m-d');
-        
+
         if ($user_month_day === $current_month_day) {
-            // Anniversaire aujourd'hui
             sendBirthdayNotification($user, $other_users, false);
         } elseif ($user_month_day === $in_two_days_month_day) {
-            // Anniversaire dans 2 jours
             sendBirthdayNotification($user, $other_users, true);
         }
     }
@@ -130,7 +133,7 @@ function sendBirthdayNotification($birthday_user, $recipients, $is_reminder) {
         $subject = $is_reminder ? 
             "Rappel: Anniversaire de {$birthday_user['full_name']} dans 2 jours" : 
             "Aujourd'hui c'est l'anniversaire de {$birthday_user['full_name']} !";
-        
+
         $message = $is_reminder ?
             "Bonjour,\n\nDans 2 jours, ce sera l'anniversaire de {$birthday_user['full_name']} !\n\n" .
             "Pensez à lui souhaiter un joyeux anniversaire .\n\n" .
@@ -138,12 +141,11 @@ function sendBirthdayNotification($birthday_user, $recipients, $is_reminder) {
             "Bonjour,\n\nAujourd'hui c'est l'anniversaire de {$birthday_user['full_name']} !\n\n" .
             "Pensez à lui souhaiter un joyeux anniversaire.\n\n" .
             "L'équipe Yearbook Sigma";
-        
+
         $headers = "From: yearbook@sigma.com\r\n";
         $headers .= "Reply-To: no-reply@sigma.com\r\n";
         $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-        
-        // Envoyer l'email (en commentaire pour éviter l'envoi réel pendant les tests)
+
         // mail($to, $subject, $message, $headers);
     }
 }

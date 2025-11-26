@@ -2,20 +2,32 @@
 session_start();
 header('Content-Type: application/json');
 
-// Database connection
-$host = 'localhost';
-$dbname = 'laho';
-$username = 'root';
-$password = '';
+require_once 'config.php'; // Centralized database connection
+require_once 'csrf.php'; // CSRF protection helper
 
-try {
-    $conn = new mysqli($host, $username, $password, $dbname);
-    if ($conn->connect_error) {
-        throw new Exception("Connection failed: " . $conn->connect_error);
+// Centralized error handling function
+function handle_error($message, $log_message = null) {
+    if ($log_message) {
+        error_log($log_message);
     }
-} catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error']);
+    echo json_encode(['success' => false, 'message' => $message]);
     exit;
+}
+
+// Improved database connection check
+if ($conn->connect_error) {
+    handle_error('Erreur de connexion à la base de données', 'Connection failed: ' . $conn->connect_error);
+}
+
+// Validate CSRF token
+if (!validate_csrf_token($_POST['csrf_token'])) {
+    handle_error('Requête invalide', 'Invalid CSRF token');
+}
+
+// Sanitize and validate event_id
+$event_id = filter_var($_POST['event_id'], FILTER_VALIDATE_INT);
+if (!$event_id) {
+    handle_error('Requête invalide', 'Invalid event_id: ' . $_POST['event_id']);
 }
 
 // Check if user is logged in
@@ -24,14 +36,17 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// Check if event_id is provided
-if (!isset($_POST['event_id']) || empty($_POST['event_id'])) {
-    echo json_encode(['success' => false, 'message' => 'Événement non spécifié']);
+try {
+    if ($conn->connect_error) {
+        throw new Exception("Connection failed: " . $conn->connect_error);
+    }
+} catch (Exception $e) {
+    error_log($e->getMessage()); // Log the error
+    echo json_encode(['success' => false, 'message' => 'Erreur de connexion à la base de données']);
     exit;
 }
 
 $user_id = $_SESSION['user_id'];
-$event_id = intval($_POST['event_id']);
 
 // Verify event exists
 $stmt = $conn->prepare("SELECT id, event_date FROM events WHERE id = ?");
@@ -66,12 +81,12 @@ $stmt->close();
 $stmt = $conn->prepare("INSERT INTO event_reminders (user_id, event_id, reminder_date) VALUES (?, ?, ?)");
 $stmt->bind_param("iis", $user_id, $event_id, $reminder_date);
 
-if ($stmt->execute()) {
-    echo json_encode(['success' => true, 'message' => 'Rappel ajouté avec succès']);
-} else {
-    echo json_encode(['success' => false, 'message' => 'Erreur lors de l\'ajout du rappel']);
+// Improved error logging for reminder addition
+if (!$stmt->execute()) {
+    handle_error('Erreur lors de l\'ajout du rappel', 'Failed to add reminder: ' . $stmt->error);
 }
 
+echo json_encode(['success' => true, 'message' => 'Rappel ajouté avec succès']);
 $stmt->close();
 $conn->close();
 ?>

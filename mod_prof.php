@@ -1,10 +1,23 @@
 <?php
 require 'config.php';
 
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+// Start session securely
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Validate session
 if (!isset($_SESSION['user_email'])) {
     header("Location: connexion.php");
     exit;
 }
+
 $user_email = $_SESSION['user_email'];
 $success = isset($_SESSION['success']) ? $_SESSION['success'] : '';
 $error = isset($_SESSION['error']) ? $_SESSION['error'] : '';
@@ -33,6 +46,7 @@ $default_image = 'img/profile_pic.jpeg';
     <title>Modifier Profil - Sigma Yearbook</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -45,12 +59,6 @@ $default_image = 'img/profile_pic.jpeg';
             --border-radius: 8px;
             --box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
         }
 
         body {
@@ -330,196 +338,49 @@ $default_image = 'img/profile_pic.jpeg';
     </style>
 </head>
 <body>
+<div class="container-fluid">
     <div class="profile-container">
-        <a href="settings.php" class="back-arrow" aria-label="Retour aux paramètres">
-            <i class="fas fa-arrow-left"></i>
-        </a>
-        
         <div class="profile-header">
-            <h1>Modifier le profil</h1>
-            <p>Mettez à jour vos informations personnelles</p>
+            <h1>Modifier Profil</h1>
         </div>
-        
         <div class="profile-content">
-            <?php if ($success || $error): ?>
-                <div class="message <?php echo $success ? 'success' : 'error'; ?>">
-                    <?php echo htmlspecialchars($success ?: $error); ?>
+            <?php if ($success): ?>
+                <div class="alert alert-success" role="alert">
+                    <?= htmlspecialchars($success) ?>
                 </div>
             <?php endif; ?>
-            
-            <div class="profile-pic-container">
-                <div class="profile-pic" id="profilePic">
-                    <img src="<?php echo $user['profile_picture'] ? htmlspecialchars($user['profile_picture']) : $default_image; ?>" alt="Photo de profil" id="profileImage">
-                    <div class="profile-pic-edit" onclick="document.getElementById('profile_picture').click()">
-                        <i class="fas fa-camera"></i>
-                    </div>
+            <?php if ($error): ?>
+                <div class="alert alert-danger" role="alert">
+                    <?= htmlspecialchars($error) ?>
                 </div>
-                <span class="photo-upload-text">Cliquez sur l'icône pour changer de photo</span>
-                <input type="file" id="profile_picture" name="profile_picture" class="file-input" accept="image/jpeg,image/png,image/webp" onchange="previewImage(event)">
-            </div>
-            
-            <form id="profileForm" method="POST" action="update_profile.php" enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                
-                <div class="form-group">
-                    <label for="full_name">Nom complet</label>
-                    <div class="input-icon">
-                        <i class="fas fa-user"></i>
-                        <input type="text" id="full_name" name="full_name" class="form-control" placeholder="Votre nom complet" value="<?php echo htmlspecialchars($user['full_name'] ?? ''); ?>" required>
-                    </div>
+            <?php endif; ?>
+            <form method="POST" action="update_profile.php" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
+                <div class="mb-3">
+                    <label for="full_name" class="form-label">Nom complet</label>
+                    <input type="text" class="form-control" id="full_name" name="full_name" value="<?= htmlspecialchars($user['full_name']) ?>" required>
                 </div>
-                
-                <div class="form-group">
-                    <label for="email">Adresse e-mail <span class="toggle-email" onclick="toggleEmail()">Afficher</span></label>
-                    <div class="input-icon">
-                        <i class="fas fa-envelope"></i>
-                        <input type="email" id="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_email); ?>" readonly required>
-                    </div>
+                <div class="mb-3">
+                    <label for="birth_date" class="form-label">Date de naissance</label>
+                    <input type="date" class="form-control" id="birth_date" name="birth_date" value="<?= htmlspecialchars($user['birth_date']) ?>" required>
                 </div>
-                
-                <?php if (isset($_GET['reset'])): ?>
-                    <div class="form-group">
-                        <label for="password">Nouveau mot de passe</label>
-                        <div class="input-icon">
-                            <i class="fas fa-lock"></i>
-                            <input type="password" id="password" name="password" class="form-control" placeholder="Nouveau mot de passe" minlength="8">
-                        </div>
-                        <p class="password-help">Minimum 8 caractères</p>
-                    </div>
-                <?php endif; ?>
-                
-                <div class="form-group">
-                    <label for="birth_date">Date de naissance</label>
-                    <div class="input-icon">
-                        <i class="fas fa-calendar-alt"></i>
-                        <input type="date" id="birth_date" name="birth_date" class="form-control" value="<?php echo htmlspecialchars($user['birth_date'] ?? ''); ?>" required>
-                    </div>
+                <div class="mb-3">
+                    <label for="bac_year" class="form-label">Année du bac</label>
+                    <input type="number" class="form-control" id="bac_year" name="bac_year" value="<?= htmlspecialchars($user['bac_year']) ?>" required>
                 </div>
-                
-                <div class="form-group">
-                    <label for="bac_year">Année du bac</label>
-                    <div class="input-icon">
-                        <i class="fas fa-graduation-cap"></i>
-                        <input type="number" id="bac_year" name="bac_year" class="form-control" placeholder="Année d'obtention" value="<?php echo htmlspecialchars($user['bac_year'] ?? ''); ?>" min="1900" max="<?php echo date('Y'); ?>" required>
-                    </div>
+                <div class="mb-3">
+                    <label for="studies" class="form-label">Études</label>
+                    <input type="text" class="form-control" id="studies" name="studies" value="<?= htmlspecialchars($user['studies']) ?>" required>
                 </div>
-                
-                <div class="form-group">
-                    <label for="studies">Études actuelles</label>
-                    <div class="input-icon">
-                        <i class="fas fa-book"></i>
-                        <input type="text" id="studies" name="studies" class="form-control" placeholder="Votre parcours académique" value="<?php echo htmlspecialchars($user['studies'] ?? ''); ?>" required>
-                    </div>
+                <div class="mb-3">
+                    <label for="profile_picture" class="form-label">Photo de profil</label>
+                    <input type="file" class="form-control" id="profile_picture" name="profile_picture">
                 </div>
-                
-                <button type="submit" class="btn btn-primary" id="submitBtn">
-                    <i class="fas fa-save"></i> Enregistrer les modifications
-                </button>
+                <button type="submit" class="btn btn-primary w-100">Enregistrer</button>
             </form>
-            
-            <?php if ($user['profile_picture']): ?>
-                <form id="deletePhotoForm" method="POST" action="update_profile.php">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                    <input type="hidden" name="delete_picture" value="1">
-                    <button type="submit" class="btn btn-danger" onclick="return confirm('Êtes-vous sûr de vouloir supprimer votre photo de profil ?')">
-                        <i class="fas fa-trash-alt"></i> Supprimer la photo
-                    </button>
-                </form>
-            <?php endif; ?>
         </div>
     </div>
-
-    <script>
-        const profileImage = document.getElementById('profileImage');
-        const imageUpload = document.getElementById('profile_picture');
-        const submitBtn = document.getElementById('submitBtn');
-        const defaultImage = '<?php echo $default_image; ?>';
-        let hasImage = <?php echo $user['profile_picture'] ? 'true' : 'false'; ?>;
-
-        function previewImage(event) {
-            const file = event.target.files[0];
-            if (file) {
-                // Vérification du type de fichier
-                const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-                if (!validTypes.includes(file.type)) {
-                    alert('Veuillez sélectionner une image valide (JPEG, PNG ou WebP).');
-                    imageUpload.value = '';
-                    return;
-                }
-                
-                // Vérification de la taille du fichier (max 5MB)
-                if (file.size > 5 * 1024 * 1024) {
-                    alert('La taille de l\'image ne doit pas dépasser 5MB.');
-                    imageUpload.value = '';
-                    return;
-                }
-                
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    profileImage.src = e.target.result;
-                    hasImage = true;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        function toggleEmail() {
-            const emailInput = document.getElementById('email');
-            const toggleSpan = document.querySelector('.toggle-email');
-            if (emailInput.type === 'email') {
-                emailInput.type = 'text';
-                toggleSpan.textContent = 'Masquer';
-            } else {
-                emailInput.type = 'email';
-                toggleSpan.textContent = 'Afficher';
-            }
-        }
-
-        document.getElementById('profileForm').addEventListener('submit', function(e) {
-            const fullName = document.getElementById('full_name').value.trim();
-            const birthDate = document.getElementById('birth_date').value;
-            const bacYear = document.getElementById('bac_year').value;
-            const studies = document.getElementById('studies').value.trim();
-            const currentYear = new Date().getFullYear();
-
-            // Validation des champs
-            if (!fullName || !birthDate || !bacYear || !studies) {
-                e.preventDefault();
-                alert('Veuillez remplir tous les champs obligatoires.');
-                return;
-            }
-
-            if (bacYear && (bacYear < 1900 || bacYear > currentYear)) {
-                e.preventDefault();
-                alert(`L'année du bac doit être comprise entre 1900 et ${currentYear}.`);
-                return;
-            }
-
-            // Vérification de la date de naissance
-            const birthDateObj = new Date(birthDate);
-            const minDate = new Date();
-            minDate.setFullYear(minDate.getFullYear() - 100); // 100 ans maximum
-            
-            if (birthDateObj > new Date() || birthDateObj < minDate) {
-                e.preventDefault();
-                alert('Veuillez entrer une date de naissance valide.');
-                return;
-            }
-
-            // Changement de l'état du bouton pendant l'envoi
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enregistrement...';
-        });
-
-        // Animation pour les champs invalides
-        document.querySelectorAll('input').forEach(input => {
-            input.addEventListener('invalid', () => {
-                input.style.borderColor = 'var(--error-color)';
-                setTimeout(() => {
-                    input.style.borderColor = '#ddd';
-                }, 2000);
-            });
-        });
-    </script>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

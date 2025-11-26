@@ -1,42 +1,62 @@
 <?php 
 include 'header.php'; 
+require_once 'config.php'; // Ensure database connection is included
+require_once 'csrf.php'; // Ensure CSRF protection is included
 
 // Login processing
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login'])) {
-    $email = $conn->real_escape_string($_POST['email']);
+    $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'];
 
-    $sql = "SELECT id, email, password, full_name, is_admin FROM users WHERE email = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
-
-    if ($user && password_verify($password, $user['password'])) {
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['full_name'] = $user['full_name'];
-        $_SESSION['is_admin'] = $user['is_admin'];
-        // Set secure session cookie
-        setcookie('PHPSESSID', session_id(), [
-            'expires' => strtotime('next year'),
-            'path' => '/',
-            'secure' => true,
-            'httponly' => true,
-            'samesite' => 'Strict'
-        ]);
-        header("Location: index.php");
-        exit();
+    if (!validate_csrf_token($_POST['csrf_token'])) {
+        $login_error = "Invalid CSRF token.";
     } else {
-        $login_error = "Email ou mot de passe incorrect.";
+        $sql = "SELECT id, email, password, full_name, is_admin FROM users WHERE email = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+
+        if ($user && password_verify($password, $user['password'])) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['full_name'] = $user['full_name'];
+            $_SESSION['is_admin'] = $user['is_admin'];
+            // Set secure session cookie
+            setcookie('PHPSESSID', session_id(), [
+                'expires' => strtotime('next year'),
+                'path' => '/',
+                'secure' => true,
+                'httponly' => true,
+                'samesite' => 'Strict'
+            ]);
+            header("Location: index.php");
+            exit();
+        } else {
+            $login_error = "Email ou mot de passe incorrect.";
+        }
+        $stmt->close();
     }
-    $stmt->close();
 }
 
 // Member count
 $sql = "SELECT COUNT(*) as member_count FROM users";
 $result = $conn->query($sql);
-$member_count = $result->fetch_assoc()['member_count'];
+$member_count = $result ? $result->fetch_assoc()['member_count'] : 0;
+
+// Add CSRF token to forms
+$csrf_token = generate_csrf_token();
+
+// Refactor repetitive code for news and events
+function render_news_item($news_item) {
+    $image_html = $news_item['image_path'] ? '<div class="news-image"><img src="' . htmlspecialchars($news_item['image_path']) . '" alt="' . htmlspecialchars($news_item['title']) . '"></div>' : '';
+    return '<div class="news-item">' . $image_html . '<div class="news-content"><h3>' . htmlspecialchars($news_item['title']) . '</h3><div class="news-date">' . date('d/m/Y', strtotime($news_item['created_at'])) . '</div><p>' . htmlspecialchars($news_item['excerpt']) . '</p></div></div>';
+}
+
+function render_event_item($event, $user_id) {
+    $reminder_button = $user_id ? '<button class="btn-reminder" data-event-id="' . $event['id'] . '"><i class="far fa-bell"></i> Ajouter un rappel</button>' : '<button class="btn-reminder" onclick="showLoginAlert()"><i class="far fa-bell"></i> Ajouter un rappel</button>';
+    return '<div class="event-item"><div class="event-date"><i class="fas fa-calendar-alt" aria-hidden="true"></i> ' . date('d/m/Y à H:i', strtotime($event['event_date'])) . '</div><h3>' . htmlspecialchars($event['title']) . '</h3><p>' . htmlspecialchars($event['description']) . '</p><div class="event-location"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> ' . htmlspecialchars($event['location']) . '</div><div class="reminder-section">' . $reminder_button . '</div></div>';
+}
 ?>
 
 <style>
@@ -510,6 +530,7 @@ $member_count = $result->fetch_assoc()['member_count'];
     }
 </style>
 
+<!-- Add CSRF token to forms -->
 <section class="hero">
     <video aria-hidden="true" autoplay muted loop playsinline>
         <source src="path/to/local/video.mp4" type="video/mp4">
@@ -572,20 +593,9 @@ $member_count = $result->fetch_assoc()['member_count'];
             $news_sql = "SELECT * FROM news WHERE is_active = 1 ORDER BY order_index ASC, created_at DESC LIMIT 3";
             $news_result = $conn->query($news_sql);
             
-            if ($news_result->num_rows > 0) {
+            if ($news_result && $news_result->num_rows > 0) {
                 while($news_item = $news_result->fetch_assoc()) {
-                    echo '<div class="news-item">';
-                    if ($news_item['image_path']) {
-                        echo '<div class="news-image">';
-                        echo '<img src="' . htmlspecialchars($news_item['image_path']) . '" alt="' . htmlspecialchars($news_item['title']) . '">';
-                        echo '</div>';
-                    }
-                    echo '<div class="news-content">';
-                    echo '<h3>' . htmlspecialchars($news_item['title']) . '</h3>';
-                    echo '<div class="news-date">' . date('d/m/Y', strtotime($news_item['created_at'])) . '</div>';
-                    echo '<p>' . htmlspecialchars($news_item['excerpt']) . '</p>';
-                    echo '</div>';
-                    echo '</div>';
+                    echo render_news_item($news_item);
                 }
             } else {
                 echo '<p>Aucune actualité pour le moment.</p>';
@@ -599,47 +609,9 @@ $member_count = $result->fetch_assoc()['member_count'];
             $events_sql = "SELECT * FROM events WHERE event_date > NOW() ORDER BY event_date ASC LIMIT 3";
             $events_result = $conn->query($events_sql);
             
-            if ($events_result->num_rows > 0) {
+            if ($events_result && $events_result->num_rows > 0) {
                 while($event = $events_result->fetch_assoc()) {
-                    echo '<div class="event-item">';
-                    echo '<div class="event-date">';
-                    echo '<i class="fas fa-calendar-alt" aria-hidden="true"></i> ';
-                    echo date('d/m/Y à H:i', strtotime($event['event_date']));
-                    echo '</div>';
-                    echo '<h3>' . htmlspecialchars($event['title']) . '</h3>';
-                    echo '<p>' . htmlspecialchars($event['description']) . '</p>';
-                    echo '<div class="event-location">';
-                    echo '<i class="fas fa-map-marker-alt" aria-hidden="true"></i> ';
-                    echo htmlspecialchars($event['location']);
-                    echo '</div>';
-                    
-                    // Add reminder button
-                    echo '<div class="reminder-section">';
-                    if (isset($_SESSION['user_id'])) {
-                        // Check if user already set a reminder
-                        $reminder_check_sql = "SELECT id FROM event_reminders WHERE user_id = ? AND event_id = ?";
-                        $stmt = $conn->prepare($reminder_check_sql);
-                        $stmt->bind_param("ii", $_SESSION['user_id'], $event['id']);
-                        $stmt->execute();
-                        $reminder_exists = $stmt->get_result()->num_rows > 0;
-                        $stmt->close();
-                        
-                        if ($reminder_exists) {
-                            echo '<button class="btn-reminder btn-reminder-added" data-event-id="' . $event['id'] . '" disabled>';
-                            echo '<i class="fas fa-bell"></i> Rappel ajouté';
-                            echo '</button>';
-                        } else {
-                            echo '<button class="btn-reminder" data-event-id="' . $event['id'] . '">';
-                            echo '<i class="far fa-bell"></i> Ajouter un rappel';
-                            echo '</button>';
-                        }
-                    } else {
-                        echo '<button class="btn-reminder" onclick="showLoginAlert()">';
-                        echo '<i class="far fa-bell"></i> Ajouter un rappel';
-                        echo '</button>';
-                    }
-                    echo '</div>';
-                    echo '</div>';
+                    echo render_event_item($event, $_SESSION['user_id'] ?? null);
                 }
             } else {
                 echo '<p>Aucun événement à venir pour le moment.</p>';

@@ -1,5 +1,18 @@
 <?php
 require 'config.php';
+
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+// Start session securely
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Validate session
 if (!isset($_SESSION['user_email'])) {
     header("Location: connexion.php");
     exit;
@@ -52,6 +65,7 @@ $default_profile_picture = 'img/profile_pic.jpeg';
     <title>Messagerie</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         /* Votre CSS existant reste ici */
         * {
@@ -77,7 +91,6 @@ $default_profile_picture = 'img/profile_pic.jpeg';
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
-        }
         }
         header {
             display: flex;
@@ -505,15 +518,12 @@ $default_profile_picture = 'img/profile_pic.jpeg';
     </style>
 </head>
 <body>
+<div class="container-fluid">
     <header>
         <div class="left-icons">
-            <a href="yearbook.php" aria-label="Aller au Yearbook"><i class="fas fa-users"></i></a>
-        </div>
-        <div class="center-title">
-            <img src="img/image.png" alt="Logo" class="logo">
+            <img src="img/logo.png" alt="Logo" class="logo">
             <h1>Messagerie</h1>
         </div>
-        <div></div>
     </header>
     <div class="messaging-container">
         <div class="user-list" id="user-list">
@@ -561,6 +571,7 @@ $default_profile_picture = 'img/profile_pic.jpeg';
 
     <div class="connection-status" id="connection-status">Connexion...</div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const currentUserId = <?php echo $current_user['id']; ?>;
         let selectedUserId = null;

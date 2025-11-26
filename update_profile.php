@@ -33,9 +33,20 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
 
 unset($_SESSION['csrf_token']);
 
-// Sanitize inputs
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] !== 'on') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+// Sanitize and validate all inputs
 $user_email = filter_var($_SESSION['user_email'], FILTER_SANITIZE_EMAIL);
 $delete_picture = isset($_POST['delete_picture']) && $_POST['delete_picture'] == '1';
+$full_name = htmlspecialchars(trim($_POST['full_name']), ENT_QUOTES, 'UTF-8');
+$birth_date = htmlspecialchars(trim($_POST['birth_date']), ENT_QUOTES, 'UTF-8');
+$bac_year = filter_var($_POST['bac_year'], FILTER_SANITIZE_NUMBER_INT);
+$studies = htmlspecialchars(trim($_POST['studies']), ENT_QUOTES, 'UTF-8');
+$password = isset($_POST['password']) ? htmlspecialchars(trim($_POST['password']), ENT_QUOTES, 'UTF-8') : null;
 
 // Connect to DB
 $conn = new mysqli("localhost", "root", "", "laho");
@@ -82,11 +93,6 @@ if ($delete_picture) {
 }
 
 // Handle other updates (if not deleting picture)
-$full_name = htmlspecialchars(trim($_POST['full_name']), ENT_QUOTES, 'UTF-8');
-$birth_date = htmlspecialchars(trim($_POST['birth_date']), ENT_QUOTES, 'UTF-8');
-$bac_year = filter_var($_POST['bac_year'], FILTER_SANITIZE_NUMBER_INT);
-$studies = htmlspecialchars(trim($_POST['studies']), ENT_QUOTES, 'UTF-8');
-$password = isset($_POST['password']) ? $_POST['password'] : null;
 
 // Validate required fields for other updates
 if (empty($full_name) || empty($birth_date) || empty($bac_year) || empty($studies)) {
@@ -107,6 +113,26 @@ if ($bac_year < 1900 || $bac_year > $current_year) {
 if ($password && strlen($password) < 8) {
     $_SESSION['error'] = "Le mot de passe doit contenir au moins 8 caractères.";
     header("Location: mod_prof.php?reset=1");
+    exit;
+}
+
+// Improve error handling for file uploads
+if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] !== UPLOAD_ERR_OK) {
+    switch ($_FILES['profile_picture']['error']) {
+        case UPLOAD_ERR_INI_SIZE:
+        case UPLOAD_ERR_FORM_SIZE:
+            $_SESSION['error'] = "L'image dépasse la taille maximale autorisée.";
+            break;
+        case UPLOAD_ERR_PARTIAL:
+            $_SESSION['error'] = "L'image n'a été que partiellement téléchargée.";
+            break;
+        case UPLOAD_ERR_NO_FILE:
+            $_SESSION['error'] = "Aucun fichier n'a été téléchargé.";
+            break;
+        default:
+            $_SESSION['error'] = "Erreur inconnue lors du téléchargement de l'image.";
+    }
+    header("Location: mod_prof.php");
     exit;
 }
 
@@ -164,7 +190,7 @@ if ($profile_picture !== null) {
 }
 
 if ($password) {
-    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+    $hashed_password = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
     $update_fields .= ", password = ?";
     $params[] = $hashed_password;
     $types .= "s";
@@ -185,6 +211,9 @@ if ($stmt->execute()) {
 }
 $stmt->close();
 $conn->close();
+
+// Add Content Security Policy
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';");
 
 header("Location: mod_prof.php");
 exit;

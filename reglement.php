@@ -62,6 +62,9 @@ if (isset($_GET['download_pdf'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Règlement Intérieur - SIGMA Alumni">
+    <meta name="author" content="SIGMA Alumni">
     <title>SIGMA Alumni - Règlement</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -238,7 +241,7 @@ if (isset($_GET['download_pdf'])) {
             <?php foreach ($regulations as $regulation): ?>
                 <div class="reglement-article">
                     <h3 class="article-title">
-                        <span class="article-number"><?php echo htmlspecialchars($regulation['article_number']); ?></span>
+                        <span class="article-number" aria-label="Numéro d'article"> <?php echo htmlspecialchars($regulation['article_number']); ?></span>
                         <?php echo htmlspecialchars($regulation['title']); ?>
                     </h3>
                     <div class="article-content">

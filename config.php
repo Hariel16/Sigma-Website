@@ -28,6 +28,14 @@ $db_name = getenv('DB_NAME') ?: 'laho';
 $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
 $conn->set_charset('utf8mb4');
 
+// Add database connection retry logic
+$max_retries = 3;
+$retry_count = 0;
+while ($retry_count < $max_retries && $conn->connect_error) {
+    $retry_count++;
+    sleep(1); // Wait before retrying
+    $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
+}
 if ($conn->connect_error) {
     // For security, don't show DB errors to end users
     error_log("DB Connection Error: " . $conn->connect_error);

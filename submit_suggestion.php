@@ -11,6 +11,12 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] !== 'on') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 // Check if user is logged in
 if (!isset($_SESSION['user_email'])) {
     header("Location: connexion.php");
@@ -35,8 +41,8 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
 unset($_SESSION['csrf_token']);
 
 // Sanitize and validate inputs
-$email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-$suggestion = filter_var($_POST['suggestion'], FILTER_SANITIZE_STRING);
+$email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
+$suggestion = htmlspecialchars(trim($_POST['suggestion']));
 
 // Validate required fields
 if (empty($email) || empty($suggestion)) {
@@ -95,8 +101,8 @@ try {
                     <img src='https://votre-domaine.com/img/image.png' alt='Sigma Logo' style='width: 100px;'>
                     <h2 style='color: #1e3a8a;'>Nouvelle suggestion</h2>
                     <p>Une nouvelle suggestion a été soumise sur la Communauté Sigma.</p>
-                    <p><strong>Soumis par :</strong> $email</p>
-                    <p><strong>Suggestion :</strong> $suggestion</p>
+                    <p><strong>Soumis par :</strong> " . htmlspecialchars($email) . "</p>
+                    <p><strong>Suggestion :</strong> " . nl2br(htmlspecialchars($suggestion)) . "</p>
                     <p>Vous pouvez consulter les détails dans l'interface d'administration.</p>
                     <p style='color: #7f8c8d;'>Cordialement,<br>L'équipe de la Communauté Sigma</p>
                     <p style='font-size: 12px; color: #95a5a6;'>Cet e-mail est automatique, veuillez ne pas y répondre.</p>
@@ -104,7 +110,7 @@ try {
             </body>
             </html>
         ";
-        $admin_mail->AltBody = "Nouvelle suggestion sur la Communauté Sigma.\n\nSoumis par : $email\nSuggestion : $suggestion\n\nVous pouvez consulter les détails dans l'interface d'administration.\n\nCordialement,\nL'équipe de la Communauté Sigma";
+        $admin_mail->AltBody = "Nouvelle suggestion sur la Communauté Sigma.\n\nSoumis par : " . htmlspecialchars($email) . "\nSuggestion : " . htmlspecialchars($suggestion) . "\n\nVous pouvez consulter les détails dans l'interface d'administration.\n\nCordialement,\nL'équipe de la Communauté Sigma";
 
         $admin_mail->send();
     } catch (Exception $e) {

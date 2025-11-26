@@ -35,6 +35,12 @@ $contact_info = [
     'map_iframe' => $configs['map_iframe'] ?? '<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2624.9916256937595!2d2.292292615509614!3d48.85837007928746!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47e66e2964e34e2d%3A0x8ddca9ee380ef7e0!2sTour%20Eiffel!5e0!3m2!1sfr!2sfr!4v1628683204470!5m2!1sfr!2sfr" allowfullscreen="" loading="lazy"></iframe>'
 ];
 
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_contact'])) {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
@@ -49,8 +55,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_contact'])) {
     $message = $purifier->purify($_POST['message']);
 
     // Validate inputs
-    if (empty($name) || empty($email) || empty($subject) || empty($message) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if (empty($name) || empty($email) || empty($subject) || empty($message)) {
         $_SESSION['error'] = "Veuillez remplir tous les champs correctement.";
+        header("Location: contact.php");
+        exit;
+    }
+
+    // Enhance email validation
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $_SESSION['error'] = "Adresse e-mail invalide.";
         header("Location: contact.php");
         exit;
     }

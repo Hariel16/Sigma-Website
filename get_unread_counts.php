@@ -1,6 +1,13 @@
 <?php
 require 'config.php';
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 if (!isset($_SESSION['user_email'])) {
+    error_log("Unauthorized access attempt to get_unread_counts.php");
     http_response_code(403);
     exit(json_encode(['error' => 'Unauthorized']));
 }

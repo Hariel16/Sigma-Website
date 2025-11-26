@@ -9,6 +9,18 @@ if (!isset($_GET['id'])) {
 }
 
 $id = (int)$_GET['id'];
+// Add input validation for ID
+if (!filter_var($id, FILTER_VALIDATE_INT)) {
+    echo json_encode(['error' => 'Invalid ID']);
+    exit;
+}
+
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 $stmt = $conn->prepare("SELECT * FROM elections WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();

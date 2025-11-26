@@ -11,6 +11,12 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] !== 'on') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 // Check if user is logged in
 if (!isset($_SESSION['user_email'])) {
     header("Location: connexion.php");
@@ -35,9 +41,9 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
 unset($_SESSION['csrf_token']);
 
 // Sanitize and validate inputs
-$reporter_email = filter_var($_POST['reporter_email'], FILTER_SANITIZE_EMAIL);
-$reported_user = filter_var($_POST['reported_user'], FILTER_SANITIZE_STRING);
-$reason = filter_var($_POST['reason'], FILTER_SANITIZE_STRING);
+$reporter_email = filter_var(trim($_POST['reporter_email']), FILTER_SANITIZE_EMAIL);
+$reported_user = htmlspecialchars(trim($_POST['reported_user']));
+$reason = htmlspecialchars(trim($_POST['reason']));
 
 // Validate required fields
 if (empty($reporter_email) || empty($reported_user) || empty($reason)) {
@@ -96,9 +102,9 @@ try {
                     <img src='https://votre-domaine.com/img/image.png' alt='Sigma Logo' style='width: 100px;'>
                     <h2 style='color: #1e3a8a;'>Nouveau signalement</h2>
                     <p>Un nouveau signalement a été soumis sur la Communauté Sigma.</p>
-                    <p><strong>Utilisateur signalé :</strong> $reported_user</p>
-                    <p><strong>Raison :</strong> $reason</p>
-                    <p><strong>Signalé par :</strong> $reporter_email</p>
+                    <p><strong>Utilisateur signalé :</strong> " . htmlspecialchars($reported_user) . "</p>
+                    <p><strong>Raison :</strong> " . nl2br(htmlspecialchars($reason)) . "</p>
+                    <p><strong>Signalé par :</strong> " . htmlspecialchars($reporter_email) . "</p>
                     <p>Vous pouvez consulter les détails dans l'interface d'administration.</p>
                     <p style='color: #7f8c8d;'>Cordialement,<br>L'équipe de la Communauté Sigma</p>
                     <p style='font-size: 12px; color: #95a5a6;'>Cet e-mail est automatique, veuillez ne pas y répondre.</p>
@@ -106,7 +112,7 @@ try {
             </body>
             </html>
         ";
-        $admin_mail->AltBody = "Nouveau signalement sur la Communauté Sigma.\n\nUtilisateur signalé : $reported_user\nRaison : $reason\nSignalé par : $reporter_email\n\nVous pouvez consulter les détails dans l'interface d'administration.\n\nCordialement,\nL'équipe de la Communauté Sigma";
+        $admin_mail->AltBody = "Nouveau signalement sur la Communauté Sigma.\n\nUtilisateur signalé : " . htmlspecialchars($reported_user) . "\nRaison : " . htmlspecialchars($reason) . "\nSignalé par : " . htmlspecialchars($reporter_email) . "\n\nVous pouvez consulter les détails dans l'interface d'administration.\n\nCordialement,\nL'équipe de la Communauté Sigma";
 
         $admin_mail->send();
     } catch (Exception $e) {

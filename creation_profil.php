@@ -1,6 +1,12 @@
 <?php
 require 'config.php';
 
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 if (!isset($_SESSION['user_email'])) {
     header("Location: connexion.php");
     exit;

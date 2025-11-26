@@ -14,6 +14,11 @@ $contact_email = $configs['contact_email'] ?? 'contact@sigma-alumni.org';
 $contact_phone = $configs['contact_phone'] ?? '+33 1 23 45 67 89';
 $contact_address = $configs['contact_address'] ?? '123 Rue de l\'Éducation, 75001 Paris, France';
 $footer_logo = $configs['footer_logo'] ?? 'img/image.png';
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
 ?>
 <footer>
     <div class="footer-container">
@@ -24,10 +29,10 @@ $footer_logo = $configs['footer_logo'] ?? 'img/image.png';
             <p>L'association des anciens élèves de SIGMA, unissant science, conscience et méthode depuis 1985.</p>
             <div class="social-links-footer">
                 <a href="<?php echo htmlspecialchars($instagram_url); ?>" target="_blank" aria-label="Suivez-nous sur Instagram">
-                    <i class="fab fa-instagram"></i>
+                    <i class="fab fa-instagram" aria-hidden="true"></i>
                 </a>
                 <a href="<?php echo htmlspecialchars($tiktok_url); ?>" target="_blank" aria-label="Suivez-nous sur TikTok">
-                    <i class="fab fa-tiktok"></i>
+                    <i class="fab fa-tiktok" aria-hidden="true"></i>
                 </a>
             </div>
         </div>

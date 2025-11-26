@@ -3,26 +3,47 @@
 require 'config.php'; // Include database connection
 require 'vendor/autoload.php'; // Include Composer autoloader for HTMLPurifier
 
+// Enforce HTTPS
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 // Initialize HTMLPurifier
 $purifier = new HTMLPurifier();
 
 // Fetch mission content
 $stmt = $conn->prepare("SELECT content FROM objectifs_mission WHERE id = 1");
-$stmt->execute();
-$mission_content = $purifier->purify($stmt->get_result()->fetch_assoc()['content'] ?? '<p>SIGMA Alumni s\'engage à créer un réseau dynamique et solidaire entre les anciens élèves de l\'établissement SIGMA, tout en contribuant au rayonnement de notre alma mater.</p><p>Notre association agit comme un pont entre les générations d\'élèves, favorisant l\'entraide, le partage d\'expériences et le développement professionnel de ses membres.</p>');
-$stmt->close();
+if ($stmt) {
+    $stmt->execute();
+    $mission_content = $purifier->purify($stmt->get_result()->fetch_assoc()['content'] ?? '<p>SIGMA Alumni s\'engage à créer un réseau dynamique et solidaire entre les anciens élèves de l\'établissement SIGMA, tout en contribuant au rayonnement de notre alma mater.</p><p>Notre association agit comme un pont entre les générations d\'élèves, favorisant l\'entraide, le partage d\'expériences et le développement professionnel de ses membres.</p>');
+    $stmt->close();
+} else {
+    error_log("Database query error: " . $conn->error);
+    $mission_content = '<p>Content unavailable. Please try again later.</p>';
+}
 
 // Fetch strategic objectives
 $stmt = $conn->prepare("SELECT title, description, icon, order_index FROM objectifs_strategic ORDER BY order_index ASC");
-$stmt->execute();
-$objectifs = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
+if ($stmt) {
+    $stmt->execute();
+    $objectifs = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+} else {
+    error_log("Database query error: " . $conn->error);
+    $objectifs = [];
+}
 
 // Fetch fundamental values
 $stmt = $conn->prepare("SELECT title, description, icon, order_index FROM objectifs_values ORDER BY order_index ASC");
-$stmt->execute();
-$values = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
+if ($stmt) {
+    $stmt->execute();
+    $values = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+} else {
+    error_log("Database query error: " . $conn->error);
+    $values = [];
+}
 ?>
 
 <!DOCTYPE html>
@@ -32,6 +53,7 @@ $stmt->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SIGMA Alumni - Objectifs</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         :root {
             --primary-blue: #0056b3;
@@ -43,20 +65,12 @@ $stmt->close();
             --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
         body {
             background-color: var(--light-gray);
             color: var(--accent-gray);
             line-height: 1.6;
         }
 
-        /* Hero Section */
         .objectifs-hero {
             background: linear-gradient(135deg, var(--dark-blue) 0%, var(--primary-blue) 100%);
             color: var(--white);
@@ -65,17 +79,6 @@ $stmt->close();
             margin-top: 70px;
         }
 
-        .objectifs-hero h1 {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .objectifs-hero p {
-            max-width: 700px;
-            margin: 0 auto;
-        }
-
-        /* Objectifs Content */
         .objectifs-container {
             max-width: 900px;
             margin: 3rem auto;
@@ -260,6 +263,7 @@ $stmt->close();
     </div>
 
     <?php include 'footer.php'; ?>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 ```

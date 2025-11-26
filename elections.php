@@ -314,6 +314,19 @@ $stmt->close();
 // Définir les variables pour la photo de profil et le nom complet
 $profile_picture = getProfilePicture($user_info['profile_picture'] ?? '');
 $full_name = $user_info['full_name'] ?? 'Utilisateur';
+
+// Add HTTPS enforcement
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+// Add CSRF token validation for election actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !validate_csrf_token($_POST['csrf_token'])) {
+        die("Invalid CSRF token.");
+    }
+}
 ?>
 
 <!DOCTYPE html>

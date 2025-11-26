@@ -95,8 +95,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Réinitialisation du mot de passe - SIGMA Alumni">
+    <meta name="author" content="SIGMA Alumni">
     <title>Récupération du mot de passe</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
@@ -148,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: 100%;
             padding: 10px;
             margin-bottom: 10px;
-            border: Typographe1px solid #ccc;
+            border: 1px solid #ccc;
             border-radius: 5px;
             box-sizing: border-box;
         }
@@ -182,13 +187,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <img src="img/image.png" alt="Sigma Logo" class="logo">
         <h2>Récupération du mot de passe</h2>
         <?php if (isset($_SESSION['error'])) { ?>
-            <p class="error"><?php echo $_SESSION['error']; unset($_SESSION['error']); ?></p>
+            <p class="error" role="alert"><?php echo $_SESSION['error']; unset($_SESSION['error']); ?></p>
         <?php } ?>
         <?php if (isset($_SESSION['reset_email'])) { ?>
-            <p class="success"><?php echo $_SESSION['reset_email']; unset($_SESSION['reset_email']); ?></p>
+            <p class="success" role="status"><?php echo $_SESSION['reset_email']; unset($_SESSION['reset_email']); ?></p>
         <?php } ?>
         <form method="POST" action="">
-            <input type="email" name="email" placeholder="Votre adresse email" required>
+            <input type="email" name="email" placeholder="Votre adresse email" required aria-label="Adresse email">
             <button type="submit">Envoyer</button>
         </form>
     </div>
