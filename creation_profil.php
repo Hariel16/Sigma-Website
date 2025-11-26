@@ -12,9 +12,8 @@ $success = isset($_SESSION['success']) ? $_SESSION['success'] : '';
 $error = isset($_SESSION['error']) ? $_SESSION['error'] : '';
 unset($_SESSION['success'], $_SESSION['error']);
 
-// Generate CSRF token
-$csrf_token = bin2hex(random_bytes(32));
-$_SESSION['csrf_token'] = $csrf_token;
+// Ensure CSRF token is set using central helper
+$_SESSION['csrf_token'] = get_csrf_token();
 
 // Check if user already has a complete profile
 $stmt = $conn->prepare("SELECT full_name, birth_date, bac_year, studies FROM users WHERE email = ?");
@@ -192,14 +191,14 @@ if ($user && !empty($user['full_name']) && !empty($user['birth_date']) && !empty
         <img src="img/image.png" alt="Sigma Logo" class="logo">
         <h1>Créer mon profil</h1>
         <form id="profileForm" method="POST" action="create_profile.php" enctype="multipart/form-data">
-            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+            <input type="hidden" name="csrf_token" value="<?php echo e($_SESSION['csrf_token']); ?>">
             <div class="form-group">
                 <label for="full_name"><i class="fas fa-user"></i> Nom complet</label>
                 <input type="text" id="full_name" name="full_name" placeholder="Nom complet" required>
             </div>
             <div class="form-group">
                 <label for="email"><i class="fas fa-envelope"></i> Adresse e-mail</label>
-                <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($user_email); ?>" readonly required>
+                <input type="email" id="email" name="email" value="<?php echo e($user_email); ?>" readonly required>
             </div>
             <div class="form-group">
                 <label for="birth_date"><i class="fas fa-calendar"></i> Date de naissance</label>
@@ -220,8 +219,8 @@ if ($user && !empty($user['full_name']) && !empty($user['birth_date']) && !empty
             </div>
             <button type="submit" class="submit-btn" id="submitBtn">Créer mon profil</button>
         </form>
-        <p id="message" class="<?php echo $success ? 'success' : ($error ? 'error' : ''); ?>">
-            <?php echo htmlspecialchars($success ?: $error); ?>
+        <p id="message" class="<?php echo e($success ? 'success' : ($error ? 'error' : '')); ?>">
+            <?php echo e($success ?: $error); ?>
         </p>
     </div>
 

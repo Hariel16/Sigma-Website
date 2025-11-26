@@ -6,8 +6,15 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Verify CSRF token
+    if (!isset($_POST['csrf_token']) || !verify_csrf_token($_POST['csrf_token'])) {
+        $_SESSION['error'] = "Erreur de validation CSRF.";
+        header("Location: creation_compte.php");
+        exit;
+    }
+
     // Basic validation instead of sanitization
-    $email = trim($_POST['email']);
+    $email = sanitize_input($_POST['email']);
     $password = password_hash(trim($_POST['password']), PASSWORD_DEFAULT);
 
     // Vérifier si l'email existe déjà

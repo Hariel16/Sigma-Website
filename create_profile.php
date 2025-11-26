@@ -23,9 +23,10 @@ if (!isset($_SESSION['user_email'])) {
     exit;
 }
 
-// Generate CSRF token if not already set
+// Use centralized CSRF helper from config
+// Ensure token is present
 if (!isset($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    $_SESSION['csrf_token'] = get_csrf_token();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -58,12 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Check if user already has a complete profile
-    $stmt = $conn->prepare("SELECT full_name, birth_date, bac_year, studies FROM users WHERE email = ?");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    // Refactored database query using helper
+    $result = execute_query($conn, "SELECT full_name, birth_date, bac_year, studies FROM users WHERE email = ?", [$email], "s");
     $user = $result->fetch_assoc();
-    $stmt->close();
 
     if ($user && !empty($user['full_name']) && !empty($user['birth_date']) && !empty($user['bac_year']) && !empty($user['studies'])) {
         $_SESSION['error'] = "Votre profil est déjà complet.";
@@ -75,38 +73,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $profile_picture = null;
     if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['profile_picture'];
-        $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+        $allowed_mimes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif'];
         $max_size = 2 * 1024 * 1024; // 2MB
 
-        if (!in_array($file['type'], $allowed_types)) {
-            $_SESSION['error'] = "Seuls les fichiers JPEG, PNG ou GIF sont autorisés.";
-            header("Location: creation_profil.php");
-            exit;
-        }
-
+        // Check file size
         if ($file['size'] > $max_size) {
             $_SESSION['error'] = "L'image est trop grande (max 2MB).";
             header("Location: creation_profil.php");
             exit;
         }
 
-        // Generate unique filename
-        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $filename = uniqid() . '.' . $ext;
-        $upload_path = 'Uploads/' . $filename;
-
-        // Create Uploads directory if it doesn't exist
-        if (!is_dir('Uploads')) {
-            mkdir('Uploads', 0755, true);
+        // Validate MIME type with finfo
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($file['tmp_name']);
+        if (!array_key_exists($mime, $allowed_mimes)) {
+            $_SESSION['error'] = "Seuls les fichiers JPEG, PNG ou GIF sont autorisés.";
+            header("Location: creation_profil.php");
+            exit;
         }
 
-        if (!move_uploaded_file($file['tmp_name'], $upload_path)) {
+        // Validate image integrity
+        $image_info = getimagesize($file['tmp_name']);
+        if ($image_info === false) {
+            $_SESSION['error'] = "Fichier image invalide.";
+            header("Location: creation_profil.php");
+            exit;
+        }
+
+        // Generate safe unique filename
+        $ext = $allowed_mimes[$mime];
+        $filename = bin2hex(random_bytes(12)) . '.' . $ext;
+        $upload_dir = UPLOAD_DIR;
+        $dst_path = $upload_dir . DIRECTORY_SEPARATOR . $filename;
+
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0755, true);
+        }
+
+        if (!move_uploaded_file($file['tmp_name'], $dst_path)) {
             $_SESSION['error'] = "Erreur lors du téléchargement de l'image.";
             header("Location: creation_profil.php");
             exit;
         }
 
-        $profile_picture = $upload_path;
+        // Store relative path used by the application
+        $relative_path = 'uploads/' . $filename;
+        $profile_picture = $relative_path;
     }
 
     // Update user in database
@@ -185,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Recipients
             $admin_mail->setFrom(SMTP_FROM_EMAIL, SMTP_FROM_NAME);
-            $admin_mail->addAddress('gojomeh137@gmail.com', 'Administrateur');
+            $admin_mail->addAddress(ADMIN_EMAIL, ADMIN_NAME);
             $admin_mail->addReplyTo(SMTP_REPLY_TO_EMAIL, SMTP_REPLY_TO_NAME);
 
             // Content

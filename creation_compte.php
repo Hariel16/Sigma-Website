@@ -3,7 +3,8 @@
 <html>
 <head>
     <title>Créer un compte</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" integrity="sha384-" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-" crossorigin="anonymous" defer></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -80,21 +81,30 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <a href="verification.php" class="back-arrow" aria-label="Retour"><i class="fas fa-arrow-left"></i></a>
-        <img src="img/image.png" alt="Sigma Logo" class="logo">
-        <h2>Créer un compte</h2>
-        <form method="POST" action="signup.php">
-            <input type="email" name="email" placeholder="Votre adresse email" required>
-            <?php if (isset($_SESSION['error']) && $_SESSION['error'] === "Email déjà utilisé.") { ?>
-                <p style="color: red;"><?php echo $_SESSION['error']; ?></p>
-            <?php } ?>
-            <input type="password" name="password" placeholder="Mot de passe" required>
-            <?php if (isset($_SESSION['error']) && $_SESSION['error'] !== "Email déjà utilisé.") { ?>
-                <p style="color: red;"><?php echo $_SESSION['error']; ?></p>
-            <?php } ?>
-            <button type="submit">Créer mon compte</button>
-        </form>
+    <div class="container mt-5">
+        <a href="verification.php" class="btn btn-link mb-3" aria-label="Retour"><i class="fas fa-arrow-left"></i> Retour</a>
+        <div class="card p-4 shadow">
+            <img src="img/image.png" alt="Sigma Logo" class="card-img-top mx-auto" style="width: 100px;">
+            <h2 class="card-title text-center">Créer un compte</h2>
+            <form method="POST" action="signup.php">
+                <input type="hidden" name="csrf_token" value="<?php echo get_csrf_token(); ?>">
+                <div class="mb-3">
+                    <label for="email" class="form-label">Adresse email</label>
+                    <input type="email" id="email" name="email" class="form-control" placeholder="Votre adresse email" required>
+                </div>
+                <?php if (isset($_SESSION['error']) && $_SESSION['error'] === "Email déjà utilisé.") { ?>
+                    <div class="alert alert-danger">Email déjà utilisé.</div>
+                <?php } ?>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Mot de passe</label>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="Mot de passe" required>
+                </div>
+                <?php if (isset($_SESSION['error']) && $_SESSION['error'] !== "Email déjà utilisé.") { ?>
+                    <div class="alert alert-danger"><?php echo htmlspecialchars($_SESSION['error']); ?></div>
+                <?php } ?>
+                <button type="submit" class="btn btn-primary w-100">Créer mon compte</button>
+            </form>
+        </div>
     </div>
 </body>
 </html>

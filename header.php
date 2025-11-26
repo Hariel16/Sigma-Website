@@ -31,6 +31,12 @@ $isLoggedIn = isset($_SESSION['user_id']);
 $current_page = basename($_SERVER['PHP_SELF']);
 
 // NE PAS gérer la déconnexion ici si on ne peut pas modifier les headers
+// Security headers
+header('X-Frame-Options: SAMEORIGIN');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: no-referrer-when-downgrade');
+// Allow cdn.jsdelivr & fonts.googleapis for styles and scripts while being restrictive for everything else
+header("Content-Security-Policy: default-src 'self' https:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:;");
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -38,7 +44,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>SIGMA Alumni - <?php echo ucfirst(str_replace('.php', '', $current_page)); ?></title>
+    <title>SIGMA Alumni - <?php echo isset($current_page) ? e(ucfirst(str_replace('.php', '', $current_page))) : 'SIGMA'; ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         /* Votre CSS existant reste le même */
@@ -285,6 +292,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
             }
         }
     </style>
+    
+    <!-- Optional JS for bootstrap functionality -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-" crossorigin="anonymous" defer></script>
 </head>
 <body>
     <header>
@@ -304,22 +314,19 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </button>
             
             <nav>
-                <ul>
-                    <li>
-                        <a href="<?php echo $isLoggedIn ? 'dashboard.php' : 'accueil.php'; ?>" 
-                           <?php echo ($current_page == 'accueil.php' || $current_page == 'dashboard.php') ? 'class="active"' : ''; ?>>
-                           Accueil
-                        </a>
+                <ul class="nav">
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo ($current_page == 'accueil.php' || $current_page == 'dashboard.php') ? 'active' : ''; ?>" href="<?php echo $isLoggedIn ? 'dashboard.php' : 'accueil.php'; ?>" aria-current="<?php echo ($current_page == 'accueil.php' || $current_page == 'dashboard.php') ? 'page' : 'false'; ?>">Accueil</a>
                     </li>
                     <li><a href="evenements.php" <?php echo $current_page == 'evenements.php' ? 'class="active"' : ''; ?>>Événements</a></li>
                     <li><a href="bureau.php" <?php echo $current_page == 'bureau.php' ? 'class="active"' : ''; ?>>Bureau</a></li>
                     <li><a href="contact.php" <?php echo $current_page == 'contact.php' ? 'class="active"' : ''; ?>>Contact</a></li>
                     <?php if ($isLoggedIn): ?>
-                        <li><a href="#" class="logout-btn" id="logoutLink">Déconnexion</a></li>
+                        <li class="nav-item"><a href="#" class="logout-btn nav-link" id="logoutLink">Déconnexion</a></li>
                     <?php else: ?>
-                        <li class="auth-buttons">
-                            <a href="verification.php" class="btn">S'inscrire</a>
-                            <a href="connexion.php" class="btn">Se connecter</a>
+                        <li class="auth-buttons nav-item d-flex align-items-center">
+                            <a href="verification.php" class="btn btn-primary">S'inscrire</a>
+                            <a href="connexion.php" class="btn btn-link ms-2">Se connecter</a>
                         </li>
                     <?php endif; ?>
                 </ul>

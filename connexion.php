@@ -19,21 +19,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password)) {
         $error = "Veuillez remplir tous les champs.";
     } else {
-        // Check if email exists
-        $stmt = $conn->prepare("SELECT id, email, password, full_name FROM users WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        // Verify CSRF token
+        if (!isset($_POST['csrf_token']) || !verify_csrf_token($_POST['csrf_token'])) {
+            $error = "Erreur de validation CSRF.";
+        } else {
+            // Simple rate limiting per session
+            if (!isset($_SESSION['login_attempts'])) {
+                $_SESSION['login_attempts'] = 0;
+                $_SESSION['last_login_attempt'] = time();
+            }
+            if ($_SESSION['login_attempts'] >= 5 && (time() - $_SESSION['last_login_attempt']) < 600) {
+                $error = "Trop de tentatives de connexion. Veuillez réessayer dans 10 minutes.";
+            }
+
+            // Check if email exists
+        $result = execute_query($conn, "SELECT id, email, password, full_name FROM users WHERE email = ?", [$email], "s");
         $user = $result->fetch_assoc();
-        $stmt->close();
 
         if ($user) {
             // Verify password
             if (password_verify($password, $user['password'])) {
                 // Set session
-                $_SESSION['user_email'] = $user['email'];
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['full_name'] = $user['full_name'];
+                    // Regenerate session ID after login
+                    session_regenerate_id(true);
+                    $_SESSION['user_email'] = $user['email'];
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['full_name'] = $user['full_name'];
+
+                    // reset login attempts
+                    $_SESSION['login_attempts'] = 0;
+                    $_SESSION['last_login_attempt'] = time();
 
                 // Increment login_count if column exists
                 $check_column = $conn->query("SHOW COLUMNS FROM users LIKE 'login_count'");
@@ -49,10 +64,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // Incorrect password
                 $error = "Email ou mot de passe incorrect.";
+                $_SESSION['login_attempts']++;
+                $_SESSION['last_login_attempt'] = time();
             }
         } else {
             // Email doesn't exist
             $error = "Email inexistant.";
+                $_SESSION['login_attempts']++;
+                $_SESSION['last_login_attempt'] = time();
         }
     }
 }
@@ -161,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p class="error"><?php echo htmlspecialchars($error); ?></p>
         <?php endif; ?>
         <form method="POST" action="">
+            <input type="hidden" name="csrf_token" value="<?php echo get_csrf_token(); ?>">
             <input type="email" name="email" placeholder="Votre adresse email" required>
             <input type="password" name="password" placeholder="Mot de passe" required>
             <button type="submit">Se connecter</button>
@@ -171,4 +191,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </body>
-</html> 
+</html>
